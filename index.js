@@ -126,9 +126,6 @@ client.on("messageCreate", async (message) => {
 
   // say
   if (cmd === "say") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
-      return message.reply("❌ Sin permisos");
-
     const texto = args.join(" ");
     if (!texto) return message.reply("❌ Escribe algo");
 
