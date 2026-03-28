@@ -54,7 +54,7 @@ const TICKET_CATEGORY_ID = "1478407828849819854";
 let logsChannel = null;
 let warns = {};
 let ticketsAbiertos = {};
-let ticketOwners = {}; // 🔥 guarda dueño real del ticket
+let ticketOwners = {};
 
 // ================= READY =================
 client.once("ready", () => {
@@ -93,106 +93,116 @@ client.on("messageCreate", async (message) => {
 // ================= INTERACCIONES =================
 client.on("interactionCreate", async (i) => {
 
-  // ===== BOTONES =====
-  if (i.isButton()) {
+  try {
 
-    if (i.customId.startsWith("ticket_")) {
-      const tipo = i.customId.split("_")[1];
+    // ===== BOTONES =====
+    if (i.isButton()) {
 
-      const modal = new ModalBuilder()
-        .setCustomId(`form_${tipo}`)
-        .setTitle(`Formulario - ${tipo}`);
+      if (i.customId.startsWith("ticket_")) {
+        const tipo = i.customId.split("_")[1];
 
-      const p1 = new TextInputBuilder()
-        .setCustomId("p1")
-        .setLabel("¿Cuál es tu problema?")
-        .setStyle(TextInputStyle.Paragraph);
+        const modal = new ModalBuilder()
+          .setCustomId(`form_${tipo}`)
+          .setTitle(`Formulario - ${tipo}`);
 
-      const p2 = new TextInputBuilder()
-        .setCustomId("p2")
-        .setLabel("Explica con detalle")
-        .setStyle(TextInputStyle.Paragraph);
+        const p1 = new TextInputBuilder()
+          .setCustomId("p1")
+          .setLabel("¿Cuál es tu problema?")
+          .setStyle(TextInputStyle.Paragraph);
 
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(p1),
-        new ActionRowBuilder().addComponents(p2)
-      );
+        const p2 = new TextInputBuilder()
+          .setCustomId("p2")
+          .setLabel("Explica con detalle")
+          .setStyle(TextInputStyle.Paragraph);
 
-      return i.showModal(modal);
-    }
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(p1),
+          new ActionRowBuilder().addComponents(p2)
+        );
 
-    if (i.customId === "ticket_close") {
-
-      const ownerId = ticketOwners[i.channel.id];
-
-      if (ownerId && ticketsAbiertos[ownerId] > 0) {
-        ticketsAbiertos[ownerId]--;
+        return i.showModal(modal);
       }
 
-      sendLog(i.guild, "🔒 Ticket cerrado");
+      if (i.customId === "ticket_close") {
+        const ownerId = ticketOwners[i.channel.id];
 
-      await i.reply("Cerrando...");
-      setTimeout(() => i.channel.delete(), 3000);
+        if (ownerId && ticketsAbiertos[ownerId] > 0) {
+          ticketsAbiertos[ownerId]--;
+        }
+
+        await i.reply({ content: "🔒 Cerrando...", ephemeral: true });
+        setTimeout(() => i.channel.delete(), 3000);
+      }
+
+      if (i.customId === "ticket_claim") {
+        return i.reply(`📌 ${i.user.tag} tomó el ticket`);
+      }
     }
 
-    if (i.customId === "ticket_claim") {
-      i.reply(`📌 ${i.user.tag} tomó el ticket`);
-    }
-  }
+    // ===== FORMULARIO =====
+    if (i.isModalSubmit()) {
 
-  // ===== FORMULARIO =====
-  if (i.isModalSubmit()) {
+      const tipo = i.customId.split("_")[1];
+      const userId = i.user.id;
 
-    const tipo = i.customId.split("_")[1];
-    const userId = i.user.id;
+      if (!ticketsAbiertos[userId]) ticketsAbiertos[userId] = 0;
 
-    // 🔒 LIMITE DE TICKETS
-    if (!ticketsAbiertos[userId]) ticketsAbiertos[userId] = 0;
+      if (ticketsAbiertos[userId] >= 3) {
+        return i.reply({
+          content: "❌ Ya tienes 3 tickets abiertos",
+          ephemeral: true
+        });
+      }
 
-    if (ticketsAbiertos[userId] >= 3) {
-      return i.reply({
-        content: "❌ Ya tienes 3 tickets abiertos",
-        ephemeral: true
+      const r1 = i.fields.getTextInputValue("p1");
+      const r2 = i.fields.getTextInputValue("p2");
+
+      // 🔥 PERMISOS CORRECTOS
+      let perms = [
+        {
+          id: i.guild.id,
+          deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: userId,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        }
+      ];
+
+      STAFF_ROLES.forEach(role => {
+        perms.push({
+          id: role,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        });
       });
-    }
 
-    const r1 = i.fields.getTextInputValue("p1");
-    const r2 = i.fields.getTextInputValue("p2");
-
-    let perms = [
-      { id: i.guild.id, deny: ["ViewChannel"] },
-      { id: userId, allow: ["ViewChannel", "SendMessages"] }
-    ];
-
-    STAFF_ROLES.forEach(role => {
-      perms.push({
-        id: role,
-        allow: ["ViewChannel", "SendMessages"]
+      const ch = await i.guild.channels.create({
+        name: `🎫-${tipo}-${i.user.username}`,
+        parent: TICKET_CATEGORY_ID,
+        permissionOverwrites: perms
       });
-    });
 
-    const ch = await i.guild.channels.create({
-      name: `🎫-${tipo}-${i.user.username}`,
-      parent: TICKET_CATEGORY_ID,
-      permissionOverwrites: perms
-    });
+      ticketOwners[ch.id] = userId;
+      ticketsAbiertos[userId]++;
 
-    // 🔥 GUARDAR OWNER
-    ticketOwners[ch.id] = userId;
-    ticketsAbiertos[userId]++;
+      let textos = {
+        dudas: "Bienvenido a tu ticket de dudas",
+        reporte: "Bienvenido a tu ticket de reportes",
+        alianza: "Bienvenido a tu ticket de alianzas",
+        recompensa: "Bienvenido a tu ticket de recompensas",
+        compra: "Bienvenido a tu ticket de compra"
+      };
 
-    let textos = {
-      dudas: "Bienvenido a tu ticket de dudas",
-      reporte: "Bienvenido a tu ticket de reportes",
-      alianza: "Bienvenido a tu ticket de alianzas",
-      recompensa: "Bienvenido a tu ticket de recompensas",
-      compra: "Bienvenido a tu ticket de compra"
-    };
-
-    const embed = new EmbedBuilder()
-      .setTitle("🎫 Ticket Abierto")
-      .setColor("Gold")
-      .setDescription(`
+      const embed = new EmbedBuilder()
+        .setTitle("🎫 Ticket Abierto")
+        .setColor("Gold")
+        .setDescription(`
 ${textos[tipo]}, <@${userId}>
 
 Un staff te atenderá pronto.
@@ -202,22 +212,34 @@ ${r1}
 
 **📌 Detalles:**
 ${r2}
-      `);
+        `);
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Cerrar Ticket").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("ticket_claim").setLabel("📌 Reclamar Ticket").setStyle(ButtonStyle.Secondary)
-    );
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Cerrar Ticket").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("ticket_claim").setLabel("📌 Reclamar Ticket").setStyle(ButtonStyle.Secondary)
+      );
 
-    ch.send({
-      content: `<@${userId}>`,
-      embeds: [embed],
-      components: [row]
-    });
+      await ch.send({
+        content: `<@${userId}>`,
+        embeds: [embed],
+        components: [row]
+      });
 
-    sendLog(i.guild, `🎫 Ticket ${tipo} creado por ${i.user.tag}`);
+      return i.reply({
+        content: `✅ Ticket creado: ${ch}`,
+        ephemeral: true
+      });
+    }
 
-    i.reply({ content: `✅ Ticket creado: ${ch}`, ephemeral: true });
+  } catch (err) {
+    console.error(err);
+
+    if (!i.replied) {
+      i.reply({
+        content: "❌ Error al procesar el ticket",
+        ephemeral: true
+      });
+    }
   }
 });
 
@@ -230,65 +252,6 @@ client.on("messageCreate", async (message) => {
   const cmd = args.shift().toLowerCase();
 
   if (cmd === "ping") return message.reply("🏓 Pong!");
-
-  if (cmd === "help") {
-    const embed = new EmbedBuilder()
-      .setTitle("📜 Zyrox System Help")
-      .setColor("Blue")
-      .setDescription(`
-🏓 z!ping
-🎫 z!panel
-💬 z!say (staff)
-🎨 z!embed (staff)
-🔒 z!lock / z!unlock (admin)
-📝 z!nick (admin)
-👮 z!warn / z!warnings
-⚙️ z!setlogs
-🎮 z!8ball / z!dice / z!coinflip
-      `);
-
-    return message.reply({ embeds: [embed] });
-  }
-
-  if (cmd === "setlogs") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return message.reply("❌ Solo admins");
-
-    logsChannel = args[0];
-    return message.reply("✅ Logs configurados");
-  }
-
-  if (cmd === "warn") {
-    const user = message.mentions.users.first();
-    if (!user) return message.reply("❌ Menciona un usuario");
-
-    if (!warns[user.id]) warns[user.id] = [];
-    warns[user.id].push(args.slice(1).join(" ") || "Sin razón");
-
-    sendLog(message.guild, `⚠️ ${user.tag} warned`);
-    message.reply("⚠️ Warn aplicado");
-  }
-
-  if (cmd === "warnings") {
-    const user = message.mentions.users.first();
-    if (!user) return;
-
-    const lista = warns[user.id] || [];
-    message.reply(lista.length ? lista.join("\n") : "Sin warns");
-  }
-
-  if (cmd === "8ball") {
-    const r = ["Sí", "No", "Tal vez", "Nunca"];
-    message.reply(r[Math.floor(Math.random() * r.length)]);
-  }
-
-  if (cmd === "dice") {
-    message.reply(`🎲 ${Math.floor(Math.random() * 6) + 1}`);
-  }
-
-  if (cmd === "coinflip") {
-    message.reply(Math.random() > 0.5 ? "Cara" : "Cruz");
-  }
 });
 
 // ================= LOGIN =================
