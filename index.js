@@ -13,10 +13,14 @@ const {
   TextInputStyle
 } = require("discord.js");
 
-// ================= WEB =================
+require("dotenv").config(); // 👈 IMPORTANTE PARA .ENV
+
+// ================= WEB (Render keep alive) =================
 const app = express();
 app.get("/", (req, res) => res.send("Zyrox ONLINE 😈"));
-app.listen(process.env.PORT || 3000);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🌐 Web server listo");
+});
 
 // ================= BOT =================
 const client = new Client({
@@ -27,17 +31,20 @@ const client = new Client({
   ]
 });
 
-const PREFIX = "z!";
+// ================= CHECK TOKEN =================
+console.log("🔑 TOKEN LOADED:", !!process.env.TOKEN);
 
 // ================= CONFIG =================
+const PREFIX = "z!";
+
 const STAFF_ROLES = ["1475150139797667842"];
 const CATEGORY_ID = "1478407828849819854";
 const EMOJI = "<:ticket:1478797985633796257>";
 
 // ================= MEMORY =================
-let logsChannel = null;
 let ticketsCount = {};
 let ticketOwner = {};
+let logsChannel = null;
 
 // ================= READY =================
 client.once("ready", () => {
@@ -91,7 +98,7 @@ Gracias por usar Zyrox Gang 😈`
 client.on("messageCreate", async (message) => {
   if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
-  const args = message.content.slice(PREFIX.length).split(" ");
+  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
 
   // 🏓 ping
@@ -103,6 +110,7 @@ client.on("messageCreate", async (message) => {
   if (cmd === "say") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
+
     const text = args.join(" ");
     message.channel.send(text);
     message.delete();
@@ -112,8 +120,12 @@ client.on("messageCreate", async (message) => {
   if (cmd === "embed") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
+
     const text = args.join(" ");
-    message.channel.send({ embeds: [new EmbedBuilder().setDescription(text).setColor("Random")] });
+    message.channel.send({
+      embeds: [new EmbedBuilder().setDescription(text).setColor("Random")]
+    });
+
     message.delete();
   }
 
@@ -121,29 +133,36 @@ client.on("messageCreate", async (message) => {
   if (cmd === "lock") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
+
     message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
       SendMessages: false
     });
-    message.reply("🔒 Bloqueado");
+
+    message.reply("🔒 Canal bloqueado");
   }
 
   // 🔓 unlock
   if (cmd === "unlock") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
+
     message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
       SendMessages: true
     });
-    message.reply("🔓 Desbloqueado");
+
+    message.reply("🔓 Canal desbloqueado");
   }
 
   // 📝 nick
   if (cmd === "nick") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
+
     const user = message.mentions.members.first();
     const name = args.slice(1).join(" ");
-    if (!user || !name) return;
+
+    if (!user || !name) return message.reply("Uso: z!nick @user nombre");
+
     user.setNickname(name);
     message.reply("📝 Nick cambiado");
   }
@@ -152,13 +171,14 @@ client.on("messageCreate", async (message) => {
   if (cmd === "setlogs") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return;
+
     logsChannel = args[0];
     message.reply("⚙️ Logs guardados");
   }
 
   // 🎮 juegos
   if (cmd === "8ball") {
-    const r = ["Sí", "No", "Tal vez", "Obvio", "xd no sé"];
+    const r = ["Sí", "No", "Tal vez", "Obvio", "xd"];
     message.reply(r[Math.floor(Math.random() * r.length)]);
   }
 
@@ -175,7 +195,6 @@ client.on("messageCreate", async (message) => {
 client.on("interactionCreate", async (i) => {
   if (!i.isButton()) return;
 
-  // abrir ticket
   if (i.customId === "open_ticket") {
     const modal = new ModalBuilder()
       .setCustomId("ticket_form")
@@ -186,13 +205,11 @@ client.on("interactionCreate", async (i) => {
       .setLabel("¿Qué necesitas?")
       .setStyle(TextInputStyle.Paragraph);
 
-    const row = new ActionRowBuilder().addComponents(reason);
-    modal.addComponents(row);
+    modal.addComponents(new ActionRowBuilder().addComponents(reason));
 
     return i.showModal(modal);
   }
 
-  // cerrar
   if (i.customId === "close_ticket") {
     i.reply({ content: "🔒 Cerrando ticket...", ephemeral: true });
     setTimeout(() => i.channel.delete(), 2000);
@@ -238,7 +255,7 @@ client.on("interactionCreate", async (i) => {
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId("close_ticket")
-          .setLabel("Cerrar")
+          .setLabel("Cerrar Ticket")
           .setStyle(ButtonStyle.Danger)
       )
     ]
@@ -247,4 +264,5 @@ client.on("interactionCreate", async (i) => {
   i.reply({ content: `✅ Ticket creado: ${ch}`, ephemeral: true });
 });
 
-client.login("TU_TOKEN_AQUI");
+// ================= LOGIN (FIX RENDER) =================
+client.login(process.env.TOKEN);
