@@ -96,7 +96,8 @@ client.on("interactionCreate", async (interaction) => {
     canal.send({
       content: `<@${interaction.user.id}>`,
       embeds: [embed],
-      components: [row]
+      components: [row],
+      allowedMentions: { parse: [] }
     });
 
     interaction.reply({ content: `✅ Ticket creado: ${canal}`, ephemeral: true });
@@ -119,21 +120,27 @@ client.on("messageCreate", async (message) => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
 
-  // ping
+  // 🏓 ping
   if (cmd === "ping") {
     return message.reply("🏓 Pong!");
   }
 
-  // say
+  // 💬 SAY (PRIVADO)
   if (cmd === "say") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
+      return message.reply("❌ Sin permisos");
+
     const texto = args.join(" ");
     if (!texto) return message.reply("❌ Escribe algo");
 
     message.delete().catch(() => {});
-    message.channel.send(texto);
+    message.channel.send({
+      content: texto,
+      allowedMentions: { parse: [] }
+    });
   }
 
-  // embed
+  // 🎨 EMBED (PRIVADO)
   if (cmd === "embed") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
       return message.reply("❌ Sin permisos");
@@ -148,9 +155,12 @@ client.on("messageCreate", async (message) => {
       .setFooter({ text: `Por ${message.author.username}` });
 
     message.delete().catch(() => {});
-    message.channel.send({ embeds: [embed] });
+    message.channel.send({
+      embeds: [embed],
+      allowedMentions: { parse: [] }
+    });
   }
 });
 
-// 🔑 LOGIN (SIEMPRE EN RENDER)
+// 🔑 LOGIN
 client.login(process.env.TOKEN);
