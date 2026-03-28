@@ -9,7 +9,7 @@ const {
   ButtonStyle
 } = require("discord.js");
 
-// 🌐 WEB (Render + UptimeRobot)
+// 🌐 WEB
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -40,7 +40,7 @@ client.once("ready", () => {
   console.log(`🤖 BOT ONLINE COMO ${client.user.tag}`);
 });
 
-// ---------------- PANEL DE TICKETS ----------------
+// ---------------- PANEL TICKETS ----------------
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
@@ -65,7 +65,6 @@ client.on("messageCreate", async (message) => {
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
-  // CREAR TICKET
   if (interaction.customId === "crear_ticket") {
     const canal = await interaction.guild.channels.create({
       name: `ticket-${interaction.user.username}`,
@@ -103,7 +102,6 @@ client.on("interactionCreate", async (interaction) => {
     interaction.reply({ content: `✅ Ticket creado: ${canal}`, ephemeral: true });
   }
 
-  // CERRAR TICKET
   if (interaction.customId === "cerrar_ticket") {
     if (!interaction.channel.name.startsWith("ticket-")) return;
 
@@ -121,11 +119,31 @@ client.on("messageCreate", async (message) => {
   const cmd = args.shift().toLowerCase();
 
   // 🏓 ping
-  if (cmd === "ping") {
-    return message.reply("🏓 Pong!");
+  if (cmd === "ping") return message.reply("🏓 Pong!");
+
+  // 📜 help
+  if (cmd === "help") {
+    const embed = new EmbedBuilder()
+      .setTitle("📜 Zyrox Help")
+      .setColor("Blue")
+      .setDescription(`
+🏓 **z!ping** → ver si el bot responde
+
+🎫 **z!panel** → crear panel de tickets (todos)
+
+💬 **z!say** → enviar mensaje (staff)
+🎨 **z!embed** → mensaje embed (staff)
+
+🔒 **z!lock** → bloquear canal (admin)
+🔓 **z!unlock** → desbloquear canal (admin)
+
+📝 **z!nick @user nombre** → cambiar apodo (admin)
+      `);
+
+    return message.reply({ embeds: [embed] });
   }
 
-  // 💬 SAY (PRIVADO)
+  // 💬 say (PRIVADO)
   if (cmd === "say") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
       return message.reply("❌ Sin permisos");
@@ -140,7 +158,7 @@ client.on("messageCreate", async (message) => {
     });
   }
 
-  // 🎨 EMBED (PRIVADO)
+  // 🎨 embed (PRIVADO)
   if (cmd === "embed") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
       return message.reply("❌ Sin permisos");
@@ -159,6 +177,45 @@ client.on("messageCreate", async (message) => {
       embeds: [embed],
       allowedMentions: { parse: [] }
     });
+  }
+
+  // 🔒 lock
+  if (cmd === "lock") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return message.reply("❌ Solo admins");
+
+    await message.channel.permissionOverwrites.edit(message.guild.id, {
+      SendMessages: false
+    });
+
+    message.channel.send("🔒 Canal bloqueado");
+  }
+
+  // 🔓 unlock
+  if (cmd === "unlock") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return message.reply("❌ Solo admins");
+
+    await message.channel.permissionOverwrites.edit(message.guild.id, {
+      SendMessages: true
+    });
+
+    message.channel.send("🔓 Canal desbloqueado");
+  }
+
+  // 📝 nick
+  if (cmd === "nick") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return message.reply("❌ Solo admins");
+
+    const user = message.mentions.members.first();
+    if (!user) return message.reply("❌ Menciona un usuario");
+
+    const nuevo = args.slice(1).join(" ");
+    if (!nuevo) return message.reply("❌ Escribe el nuevo nombre");
+
+    user.setNickname(nuevo);
+    message.channel.send(`📝 Apodo cambiado a ${nuevo}`);
   }
 });
 
