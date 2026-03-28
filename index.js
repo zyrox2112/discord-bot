@@ -1,4 +1,3 @@
-// ================= IMPORTS =================
 const express = require("express");
 const {
   Client,
@@ -12,8 +11,6 @@ const {
   TextInputBuilder,
   TextInputStyle
 } = require("discord.js");
-
-require("dotenv").config(); // 👈 IMPORTANTE PARA .ENV
 
 // ================= WEB (Render keep alive) =================
 const app = express();
@@ -31,20 +28,16 @@ const client = new Client({
   ]
 });
 
-// ================= CHECK TOKEN =================
-console.log("🔑 TOKEN LOADED:", !!process.env.TOKEN);
-
 // ================= CONFIG =================
 const PREFIX = "z!";
 
 const STAFF_ROLES = ["1475150139797667842"];
 const CATEGORY_ID = "1478407828849819854";
-const EMOJI = "<:ticket:1478797985633796257>";
+const EMOJI = "🎫";
 
 // ================= MEMORY =================
 let ticketsCount = {};
 let ticketOwner = {};
-let logsChannel = null;
 
 // ================= READY =================
 client.once("ready", () => {
@@ -62,24 +55,7 @@ client.on("messageCreate", async (message) => {
       .setDescription(
 `En este sistema podrás reportar dudas, usuarios, problemas, etc. ${EMOJI}
 
-*Para abrir un ticket, presiona el botón y proporciona la información solicitada por el equipo del staff.*
-
-**¿Cómo funciona?**
-
-${EMOJI} Abres tu ticket  
-${EMOJI} Un moderador te atenderá  
-${EMOJI} Se resolverá tu caso  
-${EMOJI} El ticket será cerrado  
-
-**¿Para qué sirve?**
-
-${EMOJI} Resolver dudas  
-${EMOJI} Reportar usuarios o estafadores  
-${EMOJI} Alianzas y Afiliaciones  
-${EMOJI} Reclamar recompensas  
-${EMOJI} Comprar Promoción  
-
-Gracias por usar Zyrox Gang 😈`
+Abre un ticket y el staff te atenderá 😈`
       );
 
     const row = new ActionRowBuilder().addComponents(
@@ -101,38 +77,32 @@ client.on("messageCreate", async (message) => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
 
-  // 🏓 ping
   if (cmd === "ping") {
     return message.reply(`🏓 Pong! ${client.ws.ping}ms`);
   }
 
-  // 💬 say (staff)
   if (cmd === "say") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return;
-
-    const text = args.join(" ");
-    message.channel.send(text);
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+    message.channel.send(args.join(" "));
     message.delete();
   }
 
-  // 🎨 embed (staff)
   if (cmd === "embed") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
-    const text = args.join(" ");
     message.channel.send({
-      embeds: [new EmbedBuilder().setDescription(text).setColor("Random")]
+      embeds: [
+        new EmbedBuilder()
+          .setDescription(args.join(" "))
+          .setColor("Random")
+      ]
     });
 
     message.delete();
   }
 
-  // 🔒 lock
   if (cmd === "lock") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
     message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
       SendMessages: false
@@ -141,10 +111,8 @@ client.on("messageCreate", async (message) => {
     message.reply("🔒 Canal bloqueado");
   }
 
-  // 🔓 unlock
   if (cmd === "unlock") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return;
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
     message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
       SendMessages: true
@@ -153,30 +121,6 @@ client.on("messageCreate", async (message) => {
     message.reply("🔓 Canal desbloqueado");
   }
 
-  // 📝 nick
-  if (cmd === "nick") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return;
-
-    const user = message.mentions.members.first();
-    const name = args.slice(1).join(" ");
-
-    if (!user || !name) return message.reply("Uso: z!nick @user nombre");
-
-    user.setNickname(name);
-    message.reply("📝 Nick cambiado");
-  }
-
-  // ⚙️ setlogs
-  if (cmd === "setlogs") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return;
-
-    logsChannel = args[0];
-    message.reply("⚙️ Logs guardados");
-  }
-
-  // 🎮 juegos
   if (cmd === "8ball") {
     const r = ["Sí", "No", "Tal vez", "Obvio", "xd"];
     message.reply(r[Math.floor(Math.random() * r.length)]);
@@ -191,7 +135,7 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-// ================= TICKETS =================
+// ================= INTERACTIONS =================
 client.on("interactionCreate", async (i) => {
   if (!i.isButton()) return;
 
@@ -244,11 +188,11 @@ client.on("interactionCreate", async (i) => {
   ticketsCount[i.user.id]++;
 
   ch.send({
-    content: `<@&${STAFF_ROLES[0]}> | <@${i.user.id}>`,
+    content: `<@${i.user.id}> | Staff`,
     embeds: [
       new EmbedBuilder()
         .setTitle("🎫 Ticket Abierto")
-        .setDescription(`**Motivo:** ${reason}`)
+        .setDescription(`Motivo: ${reason}`)
         .setColor("Green")
     ],
     components: [
@@ -264,5 +208,5 @@ client.on("interactionCreate", async (i) => {
   i.reply({ content: `✅ Ticket creado: ${ch}`, ephemeral: true });
 });
 
-// ================= LOGIN (FIX RENDER) =================
+// ================= LOGIN =================
 client.login(process.env.TOKEN);
