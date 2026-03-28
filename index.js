@@ -7,7 +7,10 @@ const {
   PermissionsBitField,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle
 } = require("discord.js");
 
 // ================= WEB =================
@@ -32,9 +35,26 @@ const client = new Client({
 
 const PREFIX = "z!";
 
+// ================= CONFIG =================
+const STAFF_ROLES = [
+  "1475150139797667842",
+  "1475150139026051084",
+  "1475150138036064376",
+  "1475150133384446165",
+  "1475150132147388477",
+  "1475150130381328414",
+  "1474997256833863793",
+  "1475150129412706477",
+  "1475150128011808870"
+];
+
+const TICKET_CATEGORY_ID = "1478407828849819854";
+
 // ================= DB SIMPLE =================
 let logsChannel = null;
 let warns = {};
+let ticketsAbiertos = {};
+let ticketOwners = {}; // 🔥 guarda dueño real del ticket
 
 // ================= READY =================
 client.once("ready", () => {
@@ -49,62 +69,155 @@ function sendLog(guild, msg) {
 }
 
 // ================= PANEL =================
-client.on("messageCreate", async (m) => {
-  if (m.author.bot) return;
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
 
-  if (m.content === "z!panel") {
+  if (message.content === "z!panel") {
     const embed = new EmbedBuilder()
-      .setTitle("🎫 Sistema de Tickets")
-      .setDescription("Presiona el botón para abrir un ticket")
-      .setColor("Blue");
+      .setTitle("🎫 Tickets | Zyrox Gang")
+      .setDescription("Selecciona el tipo de ticket que necesitas")
+      .setColor("Purple");
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("ticket_open")
-        .setLabel("🎫 Crear Ticket")
-        .setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId("ticket_dudas").setLabel("Dudas").setStyle(ButtonStyle.Success).setEmoji("1478798028407046377"),
+      new ButtonBuilder().setCustomId("ticket_reporte").setLabel("Reportes").setStyle(ButtonStyle.Danger).setEmoji("1478797948979515637"),
+      new ButtonBuilder().setCustomId("ticket_alianza").setLabel("Alianzas").setStyle(ButtonStyle.Secondary).setEmoji("1475869218938556450"),
+      new ButtonBuilder().setCustomId("ticket_recompensa").setLabel("Recompensas").setStyle(ButtonStyle.Primary).setEmoji("1478798192773435532"),
+      new ButtonBuilder().setCustomId("ticket_compra").setLabel("Compra").setStyle(ButtonStyle.Danger).setEmoji("1478798028407046377")
     );
 
-    m.channel.send({ embeds: [embed], components: [row] });
+    message.channel.send({ embeds: [embed], components: [row] });
   }
 });
 
-// ================= BOTONES =================
+// ================= INTERACCIONES =================
 client.on("interactionCreate", async (i) => {
-  if (!i.isButton()) return;
 
-  if (i.customId === "ticket_open") {
-    const ch = await i.guild.channels.create({
-      name: `ticket-${i.user.username}`,
-      permissionOverwrites: [
-        { id: i.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-        { id: i.user.id, allow: [PermissionsBitField.Flags.ViewChannel] }
-      ]
+  // ===== BOTONES =====
+  if (i.isButton()) {
+
+    if (i.customId.startsWith("ticket_")) {
+      const tipo = i.customId.split("_")[1];
+
+      const modal = new ModalBuilder()
+        .setCustomId(`form_${tipo}`)
+        .setTitle(`Formulario - ${tipo}`);
+
+      const p1 = new TextInputBuilder()
+        .setCustomId("p1")
+        .setLabel("¿Cuál es tu problema?")
+        .setStyle(TextInputStyle.Paragraph);
+
+      const p2 = new TextInputBuilder()
+        .setCustomId("p2")
+        .setLabel("Explica con detalle")
+        .setStyle(TextInputStyle.Paragraph);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(p1),
+        new ActionRowBuilder().addComponents(p2)
+      );
+
+      return i.showModal(modal);
+    }
+
+    if (i.customId === "ticket_close") {
+
+      const ownerId = ticketOwners[i.channel.id];
+
+      if (ownerId && ticketsAbiertos[ownerId] > 0) {
+        ticketsAbiertos[ownerId]--;
+      }
+
+      sendLog(i.guild, "🔒 Ticket cerrado");
+
+      await i.reply("Cerrando...");
+      setTimeout(() => i.channel.delete(), 3000);
+    }
+
+    if (i.customId === "ticket_claim") {
+      i.reply(`📌 ${i.user.tag} tomó el ticket`);
+    }
+  }
+
+  // ===== FORMULARIO =====
+  if (i.isModalSubmit()) {
+
+    const tipo = i.customId.split("_")[1];
+    const userId = i.user.id;
+
+    // 🔒 LIMITE DE TICKETS
+    if (!ticketsAbiertos[userId]) ticketsAbiertos[userId] = 0;
+
+    if (ticketsAbiertos[userId] >= 3) {
+      return i.reply({
+        content: "❌ Ya tienes 3 tickets abiertos",
+        ephemeral: true
+      });
+    }
+
+    const r1 = i.fields.getTextInputValue("p1");
+    const r2 = i.fields.getTextInputValue("p2");
+
+    let perms = [
+      { id: i.guild.id, deny: ["ViewChannel"] },
+      { id: userId, allow: ["ViewChannel", "SendMessages"] }
+    ];
+
+    STAFF_ROLES.forEach(role => {
+      perms.push({
+        id: role,
+        allow: ["ViewChannel", "SendMessages"]
+      });
     });
 
+    const ch = await i.guild.channels.create({
+      name: `🎫-${tipo}-${i.user.username}`,
+      parent: TICKET_CATEGORY_ID,
+      permissionOverwrites: perms
+    });
+
+    // 🔥 GUARDAR OWNER
+    ticketOwners[ch.id] = userId;
+    ticketsAbiertos[userId]++;
+
+    let textos = {
+      dudas: "Bienvenido a tu ticket de dudas",
+      reporte: "Bienvenido a tu ticket de reportes",
+      alianza: "Bienvenido a tu ticket de alianzas",
+      recompensa: "Bienvenido a tu ticket de recompensas",
+      compra: "Bienvenido a tu ticket de compra"
+    };
+
+    const embed = new EmbedBuilder()
+      .setTitle("🎫 Ticket Abierto")
+      .setColor("Gold")
+      .setDescription(`
+${textos[tipo]}, <@${userId}>
+
+Un staff te atenderá pronto.
+
+**📌 Problema:**
+${r1}
+
+**📌 Detalles:**
+${r2}
+      `);
+
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Cerrar").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("ticket_claim").setLabel("📌 Reclamar").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Cerrar Ticket").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("ticket_claim").setLabel("📌 Reclamar Ticket").setStyle(ButtonStyle.Secondary)
     );
 
     ch.send({
-      content: `<@${i.user.id}>`,
-      components: [row],
-      allowedMentions: { parse: [] }
+      content: `<@${userId}>`,
+      embeds: [embed],
+      components: [row]
     });
 
-    sendLog(i.guild, `🎫 Ticket creado por ${i.user.tag}`);
-    i.reply({ content: `Ticket: ${ch}`, ephemeral: true });
-  }
+    sendLog(i.guild, `🎫 Ticket ${tipo} creado por ${i.user.tag}`);
 
-  if (i.customId === "ticket_close") {
-    sendLog(i.guild, "🔒 Ticket cerrado");
-    i.reply("Cerrando...");
-    setTimeout(() => i.channel.delete(), 3000);
-  }
-
-  if (i.customId === "ticket_claim") {
-    i.reply(`📌 ${i.user.tag} tomó el ticket`);
+    i.reply({ content: `✅ Ticket creado: ${ch}`, ephemeral: true });
   }
 });
 
@@ -116,134 +229,35 @@ client.on("messageCreate", async (message) => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
 
-  // 🏓 ping
   if (cmd === "ping") return message.reply("🏓 Pong!");
 
-  // 📜 HELP PRO
   if (cmd === "help") {
     const embed = new EmbedBuilder()
       .setTitle("📜 Zyrox System Help")
       .setColor("Blue")
       .setDescription(`
-🏓 **z!ping**
-→ Ver si el bot responde
-
-🎫 **z!panel**
-→ Crear panel de tickets (todos)
-
-💬 **z!say**
-→ Enviar mensaje como bot (staff)
-
-🎨 **z!embed**
-→ Enviar embed (staff)
-
-🔒 **z!lock / z!unlock**
-→ Bloquear o desbloquear canal (admin)
-
-📝 **z!nick @user nombre**
-→ Cambiar apodo (admin)
-
-👮 **z!warn @user motivo**
-→ Dar advertencia
-
-📄 **z!warnings @user**
-→ Ver advertencias
-
-⚙️ **z!setlogs ID**
-→ Configurar canal de logs (admin)
-
-🎮 **z!8ball / z!dice / z!coinflip**
-→ Comandos divertidos
+🏓 z!ping
+🎫 z!panel
+💬 z!say (staff)
+🎨 z!embed (staff)
+🔒 z!lock / z!unlock (admin)
+📝 z!nick (admin)
+👮 z!warn / z!warnings
+⚙️ z!setlogs
+🎮 z!8ball / z!dice / z!coinflip
       `);
 
     return message.reply({ embeds: [embed] });
   }
 
-  // ⚙️ setlogs
   if (cmd === "setlogs") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return message.reply("❌ Solo admins");
 
     logsChannel = args[0];
-    return message.reply("✅ Canal de logs configurado");
+    return message.reply("✅ Logs configurados");
   }
 
-  // 💬 say
-  if (cmd === "say") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
-      return message.reply("❌ Sin permisos");
-
-    const texto = args.join(" ");
-    if (!texto) return message.reply("❌ Escribe algo");
-
-    message.delete().catch(() => {});
-    message.channel.send({
-      content: texto,
-      allowedMentions: { parse: [] }
-    });
-  }
-
-  // 🎨 embed
-  if (cmd === "embed") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
-      return message.reply("❌ Sin permisos");
-
-    const texto = args.join(" ");
-    if (!texto) return message.reply("❌ Escribe algo");
-
-    const embed = new EmbedBuilder()
-      .setTitle("📢 Zyrox System")
-      .setDescription(texto)
-      .setColor("Blue");
-
-    message.channel.send({
-      embeds: [embed],
-      allowedMentions: { parse: [] }
-    });
-  }
-
-  // 🔒 lock
-  if (cmd === "lock") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return message.reply("❌ Solo admins");
-
-    await message.channel.permissionOverwrites.edit(message.guild.id, {
-      SendMessages: false
-    });
-
-    sendLog(message.guild, `🔒 ${message.author.tag} bloqueó canal`);
-    message.channel.send("🔒 Canal bloqueado");
-  }
-
-  // 🔓 unlock
-  if (cmd === "unlock") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return message.reply("❌ Solo admins");
-
-    await message.channel.permissionOverwrites.edit(message.guild.id, {
-      SendMessages: true
-    });
-
-    sendLog(message.guild, `🔓 ${message.author.tag} desbloqueó canal`);
-    message.channel.send("🔓 Canal desbloqueado");
-  }
-
-  // 📝 nick
-  if (cmd === "nick") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return message.reply("❌ Solo admins");
-
-    const user = message.mentions.members.first();
-    if (!user) return message.reply("❌ Menciona un usuario");
-
-    const nuevo = args.slice(1).join(" ");
-    if (!nuevo) return message.reply("❌ Escribe el nombre");
-
-    await user.setNickname(nuevo);
-    message.channel.send(`📝 Apodo cambiado a ${nuevo}`);
-  }
-
-  // 👮 warn
   if (cmd === "warn") {
     const user = message.mentions.users.first();
     if (!user) return message.reply("❌ Menciona un usuario");
@@ -251,23 +265,21 @@ client.on("messageCreate", async (message) => {
     if (!warns[user.id]) warns[user.id] = [];
     warns[user.id].push(args.slice(1).join(" ") || "Sin razón");
 
-    sendLog(message.guild, `⚠️ ${user.tag} fue advertido`);
+    sendLog(message.guild, `⚠️ ${user.tag} warned`);
     message.reply("⚠️ Warn aplicado");
   }
 
-  // 📄 warnings
   if (cmd === "warnings") {
     const user = message.mentions.users.first();
-    if (!user) return message.reply("❌ Menciona un usuario");
+    if (!user) return;
 
     const lista = warns[user.id] || [];
     message.reply(lista.length ? lista.join("\n") : "Sin warns");
   }
 
-  // 🎮 fun
   if (cmd === "8ball") {
-    const respuestas = ["Sí", "No", "Tal vez", "Obvio", "Nunca"];
-    message.reply(respuestas[Math.floor(Math.random() * respuestas.length)]);
+    const r = ["Sí", "No", "Tal vez", "Nunca"];
+    message.reply(r[Math.floor(Math.random() * r.length)]);
   }
 
   if (cmd === "dice") {
