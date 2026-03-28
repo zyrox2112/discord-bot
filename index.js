@@ -12,7 +12,7 @@ const {
   TextInputStyle
 } = require("discord.js");
 
-// ================= WEB (Render keep alive) =================
+// ================= WEB =================
 const app = express();
 app.get("/", (req, res) => res.send("Zyrox ONLINE 😈"));
 app.listen(process.env.PORT || 3000, () => {
@@ -33,11 +33,9 @@ const PREFIX = "z!";
 
 const STAFF_ROLES = ["1475150139797667842"];
 const CATEGORY_ID = "1478407828849819854";
-const EMOJI = "🎫";
 
 // ================= MEMORY =================
 let ticketsCount = {};
-let ticketOwner = {};
 
 // ================= READY =================
 client.once("ready", () => {
@@ -52,11 +50,7 @@ client.on("messageCreate", async (message) => {
     const embed = new EmbedBuilder()
       .setTitle("🎫 Sistema de Tickets - Zyrox Gang")
       .setColor("Blue")
-      .setDescription(
-`En este sistema podrás reportar dudas, usuarios, problemas, etc. ${EMOJI}
-
-Abre un ticket y el staff te atenderá 😈`
-      );
+      .setDescription("Abre un ticket para hablar con el staff 😈");
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -76,6 +70,23 @@ client.on("messageCreate", async (message) => {
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
+
+  // 🟢 HELP
+  if (cmd === "help") {
+    return message.reply(
+`📜 **Zyrox Help**
+
+z!ping - latencia  
+z!help - comandos  
+z!say - repetir (admin)  
+z!embed - embed (admin)  
+z!lock / unlock - canal  
+z!8ball - pregunta mágica  
+z!dice - dado  
+z!coinflip - moneda  
+z!panel - tickets`
+    );
+  }
 
   if (cmd === "ping") {
     return message.reply(`🏓 Pong! ${client.ws.ping}ms`);
@@ -184,7 +195,6 @@ client.on("interactionCreate", async (i) => {
     ]
   });
 
-  ticketOwner[ch.id] = i.user.id;
   ticketsCount[i.user.id]++;
 
   ch.send({
