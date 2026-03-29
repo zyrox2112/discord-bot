@@ -9,12 +9,12 @@ const {
 } = require("discord.js");
 
 // ======================
-// CONFIG
+// ENV (Render)
 // ======================
-const TOKEN = "TU_TOKEN";
-const CLIENT_ID = "TU_CLIENT_ID";
-const GUILD_ID = "TU_GUILD_ID";
-const PREFIX = "z!";
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
+const PREFIX = process.env.PREFIX || "z!";
 
 // ======================
 // CLIENT
@@ -30,7 +30,7 @@ const client = new Client({
 });
 
 // ======================
-// WARN SYSTEM (simple)
+// WARN SYSTEM SIMPLE
 // ======================
 const warns = new Map();
 
@@ -40,22 +40,35 @@ const warns = new Map();
 const commands = [
   new SlashCommandBuilder().setName("ping").setDescription("Ver ping"),
   new SlashCommandBuilder().setName("help").setDescription("Ver ayuda"),
-  new SlashCommandBuilder().setName("say").setDescription("Decir algo").addStringOption(o =>
-    o.setName("text").setDescription("texto").setRequired(true)
-  ),
+
+  new SlashCommandBuilder()
+    .setName("say")
+    .setDescription("Decir algo")
+    .addStringOption(o =>
+      o.setName("text").setDescription("texto").setRequired(true)
+    ),
+
   new SlashCommandBuilder().setName("8ball").setDescription("Pregunta"),
   new SlashCommandBuilder().setName("dice").setDescription("Dado"),
   new SlashCommandBuilder().setName("coinflip").setDescription("Cara o cruz"),
-  new SlashCommandBuilder().setName("kick").setDescription("Kick user").addUserOption(o =>
-    o.setName("user").setDescription("usuario").setRequired(true)
-  ),
-  new SlashCommandBuilder().setName("ban").setDescription("Ban user").addUserOption(o =>
-    o.setName("user").setDescription("usuario").setRequired(true)
-  )
+
+  new SlashCommandBuilder()
+    .setName("kick")
+    .setDescription("Kick user")
+    .addUserOption(o =>
+      o.setName("user").setDescription("usuario").setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("ban")
+    .setDescription("Ban user")
+    .addUserOption(o =>
+      o.setName("user").setDescription("usuario").setRequired(true)
+    )
 ].map(c => c.toJSON());
 
 // ======================
-// READY
+// READY + REGISTER SLASH
 // ======================
 client.once("ready", async () => {
   console.log(`🟢 Logged as ${client.user.tag}`);
@@ -90,6 +103,7 @@ client.on("messageCreate", async (message) => {
   if (cmd === "say") {
     const text = args.join(" ");
     if (!text) return message.reply("Escribe algo");
+
     await message.delete().catch(() => {});
     return message.channel.send(text);
   }
@@ -136,38 +150,23 @@ client.on("messageCreate", async (message) => {
     return message.reply("🔓 unlocked");
   }
 
-  if (cmd === "warn") {
-    const user = message.mentions.user?.id;
-    if (!user) return message.reply("Menciona alguien");
-
-    if (!warns.has(user)) warns.set(user, []);
-    warns.get(user).push("warn");
-
-    return message.reply("Warn dado");
-  }
-
-  if (cmd === "warnings") {
-    const user = message.mentions.user?.id;
-    if (!user) return message.reply("Menciona alguien");
-
-    return message.reply(`Warns: ${(warns.get(user) || []).length}`);
-  }
-
   // 📜 HELP PREFIX
   if (cmd === "help") {
     const embed = new EmbedBuilder()
       .setTitle("📜 Zyrox System | Help")
       .setColor("Blue")
       .setThumbnail(client.user.displayAvatarURL())
-      .setDescription("Comandos prefix `z!` 🚀")
+      .setDescription("Comandos prefix 🚀")
       .addFields(
         {
           name: "⚡ Utilidad",
-          value: "`z!ping`\n`z!say`\n`z!8ball`\n`z!dice`\n`z!coinflip`"
+          value:
+            "`z!ping`\n`z!say`\n`z!8ball`\n`z!dice`\n`z!coinflip`"
         },
         {
           name: "🛡️ Moderación",
-          value: "`z!kick`\n`z!ban`\n`z!warn`\n`z!warnings`\n`z!lock`\n`z!unlock`"
+          value:
+            "`z!kick`\n`z!ban`\n`z!lock`\n`z!unlock`"
         }
       )
       .setFooter({ text: "Zyrox System 😈" });
