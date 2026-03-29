@@ -37,61 +37,91 @@ let warns = {};
 let logsChannel = null;
 let tickets = {};
 
-// ================= SLASH =================
+// ================= SLASH COMMANDS FIXED =================
 const commands = [
 
   new SlashCommandBuilder().setName("help").setDescription("Ver comandos"),
-  new SlashCommandBuilder().setName("ping").setDescription("Ping"),
+  new SlashCommandBuilder().setName("ping").setDescription("Ver ping del bot"),
 
-  new SlashCommandBuilder().setName("say")
+  new SlashCommandBuilder()
+    .setName("say")
+    .setDescription("Enviar mensaje")
     .addStringOption(o => o.setName("mensaje").setDescription("Texto").setRequired(true)),
 
-  new SlashCommandBuilder().setName("embedpro")
-    .setDescription("Embed editable")
+  new SlashCommandBuilder()
+    .setName("embedpro")
+    .setDescription("Embed personalizado")
     .addStringOption(o => o.setName("nombre").setDescription("Autor"))
     .addStringOption(o => o.setName("titulo").setDescription("Titulo"))
     .addStringOption(o => o.setName("descripcion").setDescription("Descripcion"))
     .addStringOption(o => o.setName("color").setDescription("#HEX o Blue"))
     .addStringOption(o => o.setName("imagen").setDescription("URL imagen")),
 
-  new SlashCommandBuilder().setName("announce")
-    .addStringOption(o => o.setName("titulo").setRequired(true))
-    .addStringOption(o => o.setName("mensaje").setRequired(true))
-    .addStringOption(o => o.setName("imagen")),
+  new SlashCommandBuilder()
+    .setName("announce")
+    .setDescription("Anuncio en el canal")
+    .addStringOption(o => o.setName("titulo").setDescription("Titulo").setRequired(true))
+    .addStringOption(o => o.setName("mensaje").setDescription("Mensaje").setRequired(true))
+    .addStringOption(o => o.setName("imagen").setDescription("Imagen")),
 
-  new SlashCommandBuilder().setName("kick").addStringOption(o => o.setName("user").setRequired(true)),
-  new SlashCommandBuilder().setName("ban").addStringOption(o => o.setName("user").setRequired(true)),
-  new SlashCommandBuilder().setName("unban").addStringOption(o => o.setName("id").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("kick")
+    .setDescription("Expulsar usuario")
+    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
 
-  new SlashCommandBuilder().setName("mute")
-    .addStringOption(o => o.setName("user").setRequired(true))
-    .addIntegerOption(o => o.setName("tiempo").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("ban")
+    .setDescription("Banear usuario")
+    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
 
-  new SlashCommandBuilder().setName("unmute")
-    .addStringOption(o => o.setName("user").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("unban")
+    .setDescription("Desbanear usuario")
+    .addStringOption(o => o.setName("id").setDescription("ID").setRequired(true)),
 
-  new SlashCommandBuilder().setName("clear")
-    .addIntegerOption(o => o.setName("cantidad").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("mute")
+    .setDescription("Silenciar usuario")
+    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true))
+    .addIntegerOption(o => o.setName("tiempo").setDescription("Minutos").setRequired(true)),
 
-  new SlashCommandBuilder().setName("lock"),
-  new SlashCommandBuilder().setName("unlock"),
+  new SlashCommandBuilder()
+    .setName("unmute")
+    .setDescription("Quitar mute")
+    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
 
-  new SlashCommandBuilder().setName("warn")
-    .addStringOption(o => o.setName("user").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("clear")
+    .setDescription("Borrar mensajes")
+    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)),
 
-  new SlashCommandBuilder().setName("warnings")
-    .addStringOption(o => o.setName("user").setRequired(true)),
+  new SlashCommandBuilder().setName("lock").setDescription("Bloquear canal"),
+  new SlashCommandBuilder().setName("unlock").setDescription("Desbloquear canal"),
 
-  new SlashCommandBuilder().setName("setlogs")
-    .addStringOption(o => o.setName("id").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("warn")
+    .setDescription("Dar warn")
+    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
 
-  new SlashCommandBuilder().setName("8ball")
-    .addStringOption(o => o.setName("pregunta").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("warnings")
+    .setDescription("Ver warns")
+    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
 
-  new SlashCommandBuilder().setName("dice"),
-  new SlashCommandBuilder().setName("coinflip"),
+  new SlashCommandBuilder()
+    .setName("setlogs")
+    .setDescription("Set logs channel id")
+    .addStringOption(o => o.setName("id").setDescription("ID canal").setRequired(true)),
 
-  new SlashCommandBuilder().setName("panel")
+  new SlashCommandBuilder()
+    .setName("8ball")
+    .setDescription("Pregunta al bot")
+    .addStringOption(o => o.setName("pregunta").setDescription("Pregunta").setRequired(true)),
+
+  new SlashCommandBuilder().setName("dice").setDescription("Tirar dado"),
+  new SlashCommandBuilder().setName("coinflip").setDescription("Cara o cruz"),
+
+  new SlashCommandBuilder().setName("panel").setDescription("Panel de tickets")
 ];
 
 // ================= REGISTER =================
@@ -120,14 +150,13 @@ const getUser = async (guild, input) => {
   return await guild.members.fetch(id).catch(() => null);
 };
 
-// ================= INTERACCIONES =================
+// ================= BOT =================
 client.on("interactionCreate", async (i) => {
 
   if (i.isChatInputCommand()) {
 
     const cmd = i.commandName;
 
-    // ===== HELP =====
     if (cmd === "help") {
       const embed = new EmbedBuilder()
         .setTitle("📜 Zyrox System FINAL")
@@ -147,22 +176,19 @@ client.on("interactionCreate", async (i) => {
       return i.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // ===== PING =====
     if (cmd === "ping") return i.reply(`🏓 ${client.ws.ping}ms`);
 
-    // ===== SAY =====
     if (cmd === "say") {
       if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator))
         return i.reply({ content: "❌ Sin permisos", ephemeral: true });
 
       const msg = i.options.getString("mensaje");
-      if (!msg) return i.reply({ content: "❌ Mensaje vacío", ephemeral: true });
+      if (!msg) return i.reply("Mensaje vacío");
 
       await i.channel.send(msg);
       return i.reply({ content: "✅ Enviado", ephemeral: true });
     }
 
-    // ===== EMBED PRO FIXED =====
     if (cmd === "embedpro") {
 
       const nombre = i.options.getString("nombre") ?? "Zyrox";
@@ -186,16 +212,15 @@ client.on("interactionCreate", async (i) => {
       return i.reply({ embeds: [embed] });
     }
 
-    // ===== ANNOUNCE =====
     if (cmd === "announce") {
 
-      const titulo = i.options.getString("titulo");
-      const mensaje = i.options.getString("mensaje");
+      const titulo = i.options.getString("titulo") ?? "";
+      const mensaje = i.options.getString("mensaje") ?? "";
       const imagen = i.options.getString("imagen");
 
       const embed = new EmbedBuilder()
-        .setTitle(titulo ?? "")
-        .setDescription(mensaje ?? "")
+        .setTitle(titulo)
+        .setDescription(mensaje)
         .setColor("Gold");
 
       if (typeof imagen === "string" && imagen.startsWith("http")) {
@@ -205,7 +230,6 @@ client.on("interactionCreate", async (i) => {
       return i.channel.send({ embeds: [embed] });
     }
 
-    // ===== MOD =====
     if (cmd === "kick") {
       const m = await getUser(i.guild, i.options.getString("user"));
       if (!m) return i.reply("Usuario no encontrado");
@@ -271,7 +295,6 @@ client.on("interactionCreate", async (i) => {
       return i.reply("Logs set");
     }
 
-    // ===== FUN =====
     if (cmd === "8ball") {
       const r = ["Sí", "No", "Tal vez", "Obvio"];
       return i.reply(r[Math.floor(Math.random() * r.length)]);
@@ -280,7 +303,6 @@ client.on("interactionCreate", async (i) => {
     if (cmd === "dice") return i.reply("🎲 " + (Math.floor(Math.random() * 6) + 1));
     if (cmd === "coinflip") return i.reply(Math.random() > 0.5 ? "Cara" : "Cruz");
 
-    // ===== PANEL =====
     if (cmd === "panel") {
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -293,7 +315,6 @@ client.on("interactionCreate", async (i) => {
     }
   }
 
-  // ===== BOTÓN =====
   if (i.isButton()) {
 
     if (i.customId === "ticket") {
