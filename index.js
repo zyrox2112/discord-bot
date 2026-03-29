@@ -68,19 +68,19 @@ const commands = [
 ].map(c => c.toJSON());
 
 // ======================
-// READY + REGISTER SLASH
+// READY (FIX RENDER SAFE)
 // ======================
 client.once("ready", async () => {
   console.log(`🟢 Logged as ${client.user.tag}`);
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
 
-  await rest.put(
+  rest.put(
     Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
     { body: commands }
-  );
-
-  console.log("⚡ Slash commands listos");
+  )
+  .then(() => console.log("⚡ Slash commands listos"))
+  .catch(err => console.error("💥 Slash error:", err));
 });
 
 // ======================
@@ -95,7 +95,9 @@ client.on("messageCreate", async (message) => {
 
   if (!cmd) return;
 
+  // ======================
   // ⚡ UTILIDAD
+  // ======================
   if (cmd === "ping") {
     return message.reply(`🏓 ${client.ws.ping}ms`);
   }
@@ -103,7 +105,6 @@ client.on("messageCreate", async (message) => {
   if (cmd === "say") {
     const text = args.join(" ");
     if (!text) return message.reply("Escribe algo");
-
     await message.delete().catch(() => {});
     return message.channel.send(text);
   }
@@ -121,7 +122,9 @@ client.on("messageCreate", async (message) => {
     return message.reply(Math.random() < 0.5 ? "cara" : "cruz");
   }
 
-  // 🛡️ MOD
+  // ======================
+  // 🛡️ MODERACIÓN
+  // ======================
   if (cmd === "kick") {
     const user = message.mentions.members.first();
     if (!user) return message.reply("Menciona alguien");
@@ -140,36 +143,72 @@ client.on("messageCreate", async (message) => {
     await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
       SendMessages: false
     });
-    return message.reply("🔒 locked");
+    return message.reply("🔒 canal bloqueado");
   }
 
   if (cmd === "unlock") {
     await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
       SendMessages: true
     });
-    return message.reply("🔓 unlocked");
+    return message.reply("🔓 canal desbloqueado");
   }
 
-  // 📜 HELP PREFIX
+  if (cmd === "warn") {
+    const user = message.mentions.members.first();
+    if (!user) return message.reply("Menciona alguien");
+
+    if (!warns.has(user.id)) warns.set(user.id, []);
+    warns.get(user.id).push("warn");
+
+    return message.reply("⚠️ Warn dado");
+  }
+
+  if (cmd === "warnings") {
+    const user = message.mentions.members.first();
+    if (!user) return message.reply("Menciona alguien");
+
+    const w = warns.get(user.id) || [];
+    return message.reply(`⚠️ Warns: ${w.length}`);
+  }
+
+  // ======================
+  // 🎨 EMBED
+  // ======================
+  if (cmd === "embed") {
+    const text = args.join(" ");
+    if (!text) return message.reply("Escribe algo");
+
+    const embed = new EmbedBuilder()
+      .setDescription(text)
+      .setColor("Blue");
+
+    return message.channel.send({ embeds: [embed] });
+  }
+
+  // ======================
+  // 📜 HELP PREFIX (GOD)
+  // ======================
   if (cmd === "help") {
     const embed = new EmbedBuilder()
       .setTitle("📜 Zyrox System | Help")
       .setColor("Blue")
       .setThumbnail(client.user.displayAvatarURL())
-      .setDescription("Comandos prefix 🚀")
+      .setDescription("🔥 Todos los comandos del bot ordenados")
+
       .addFields(
         {
           name: "⚡ Utilidad",
           value:
-            "`z!ping`\n`z!say`\n`z!8ball`\n`z!dice`\n`z!coinflip`"
+            "`z!ping`\n`z!say`\n`z!8ball`\n`z!dice`\n`z!coinflip`\n`z!embed`"
         },
         {
           name: "🛡️ Moderación",
           value:
-            "`z!kick`\n`z!ban`\n`z!lock`\n`z!unlock`"
+            "`z!kick`\n`z!ban`\n`z!warn`\n`z!warnings`\n`z!lock`\n`z!unlock`"
         }
       )
-      .setFooter({ text: "Zyrox System 😈" });
+
+      .setFooter({ text: "Zyrox System 😈 | Prefix + Slash" });
 
     return message.reply({ embeds: [embed] });
   }
@@ -188,8 +227,7 @@ client.on("interactionCreate", async (i) => {
   }
 
   if (cmd === "say") {
-    const text = i.options.getString("text");
-    return i.reply({ content: text });
+    return i.reply({ content: i.options.getString("text") });
   }
 
   if (cmd === "8ball") {
@@ -217,11 +255,14 @@ client.on("interactionCreate", async (i) => {
     return i.reply({ content: "Ban hecho", ephemeral: true });
   }
 
+  // ======================
+  // HELP SLASH
+  // ======================
   if (cmd === "help") {
     const embed = new EmbedBuilder()
       .setTitle("📜 Zyrox System | Help")
       .setColor("Blue")
-      .setDescription("Comandos slash 🚀")
+      .setDescription("🔥 Comandos slash")
       .addFields(
         {
           name: "⚡ Utilidad",
