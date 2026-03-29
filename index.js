@@ -44,49 +44,49 @@ const commands = [
   new SlashCommandBuilder().setName("ping").setDescription("Ping"),
 
   new SlashCommandBuilder().setName("say")
-    .addStringOption(o=>o.setName("mensaje").setDescription("Texto").setRequired(true)),
+    .addStringOption(o => o.setName("mensaje").setDescription("Texto").setRequired(true)),
 
   new SlashCommandBuilder().setName("embedpro")
     .setDescription("Embed editable")
-    .addStringOption(o=>o.setName("nombre").setDescription("Autor"))
-    .addStringOption(o=>o.setName("titulo").setDescription("Titulo"))
-    .addStringOption(o=>o.setName("descripcion").setDescription("Descripcion"))
-    .addStringOption(o=>o.setName("color").setDescription("#HEX o Blue"))
-    .addStringOption(o=>o.setName("imagen").setDescription("URL imagen")),
+    .addStringOption(o => o.setName("nombre").setDescription("Autor"))
+    .addStringOption(o => o.setName("titulo").setDescription("Titulo"))
+    .addStringOption(o => o.setName("descripcion").setDescription("Descripcion"))
+    .addStringOption(o => o.setName("color").setDescription("#HEX o Blue"))
+    .addStringOption(o => o.setName("imagen").setDescription("URL imagen")),
 
   new SlashCommandBuilder().setName("announce")
-    .addStringOption(o=>o.setName("titulo").setRequired(true))
-    .addStringOption(o=>o.setName("mensaje").setRequired(true))
-    .addStringOption(o=>o.setName("imagen")),
+    .addStringOption(o => o.setName("titulo").setRequired(true))
+    .addStringOption(o => o.setName("mensaje").setRequired(true))
+    .addStringOption(o => o.setName("imagen")),
 
-  new SlashCommandBuilder().setName("kick").addStringOption(o=>o.setName("user").setRequired(true)),
-  new SlashCommandBuilder().setName("ban").addStringOption(o=>o.setName("user").setRequired(true)),
-  new SlashCommandBuilder().setName("unban").addStringOption(o=>o.setName("id").setRequired(true)),
+  new SlashCommandBuilder().setName("kick").addStringOption(o => o.setName("user").setRequired(true)),
+  new SlashCommandBuilder().setName("ban").addStringOption(o => o.setName("user").setRequired(true)),
+  new SlashCommandBuilder().setName("unban").addStringOption(o => o.setName("id").setRequired(true)),
 
   new SlashCommandBuilder().setName("mute")
-    .addStringOption(o=>o.setName("user").setRequired(true))
-    .addIntegerOption(o=>o.setName("tiempo").setRequired(true)),
+    .addStringOption(o => o.setName("user").setRequired(true))
+    .addIntegerOption(o => o.setName("tiempo").setRequired(true)),
 
   new SlashCommandBuilder().setName("unmute")
-    .addStringOption(o=>o.setName("user").setRequired(true)),
+    .addStringOption(o => o.setName("user").setRequired(true)),
 
   new SlashCommandBuilder().setName("clear")
-    .addIntegerOption(o=>o.setName("cantidad").setRequired(true)),
+    .addIntegerOption(o => o.setName("cantidad").setRequired(true)),
 
   new SlashCommandBuilder().setName("lock"),
   new SlashCommandBuilder().setName("unlock"),
 
   new SlashCommandBuilder().setName("warn")
-    .addStringOption(o=>o.setName("user").setRequired(true)),
+    .addStringOption(o => o.setName("user").setRequired(true)),
 
   new SlashCommandBuilder().setName("warnings")
-    .addStringOption(o=>o.setName("user").setRequired(true)),
+    .addStringOption(o => o.setName("user").setRequired(true)),
 
   new SlashCommandBuilder().setName("setlogs")
-    .addStringOption(o=>o.setName("id").setRequired(true)),
+    .addStringOption(o => o.setName("id").setRequired(true)),
 
   new SlashCommandBuilder().setName("8ball")
-    .addStringOption(o=>o.setName("pregunta").setRequired(true)),
+    .addStringOption(o => o.setName("pregunta").setRequired(true)),
 
   new SlashCommandBuilder().setName("dice"),
   new SlashCommandBuilder().setName("coinflip"),
@@ -96,7 +96,13 @@ const commands = [
 
 // ================= REGISTER =================
 const rest = new REST({ version: "10" }).setToken(TOKEN);
+
 (async () => {
+  if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
+    console.log("❌ Faltan variables de entorno");
+    return;
+  }
+
   await rest.put(
     Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
     { body: commands }
@@ -149,24 +155,23 @@ client.on("interactionCreate", async (i) => {
       if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator))
         return i.reply({ content: "❌ Sin permisos", ephemeral: true });
 
-      const msg = i.options.getString("mensaje") || " ";
+      const msg = i.options.getString("mensaje");
+      if (!msg) return i.reply({ content: "❌ Mensaje vacío", ephemeral: true });
+
       await i.channel.send(msg);
       return i.reply({ content: "✅ Enviado", ephemeral: true });
     }
 
-    // ===== EMBED PRO (FIX) =====
+    // ===== EMBED PRO FIXED =====
     if (cmd === "embedpro") {
 
-      const nombre = i.options.getString("nombre") || "Zyrox";
-      const titulo = i.options.getString("titulo") || " ";
-      const descripcion = i.options.getString("descripcion") || " ";
+      const nombre = i.options.getString("nombre") ?? "Zyrox";
+      const titulo = i.options.getString("titulo") ?? "";
+      const descripcion = i.options.getString("descripcion") ?? "";
       const colorInput = i.options.getString("color");
       const imagen = i.options.getString("imagen");
 
-      let color = "Blue";
-      if (colorInput && colorInput.startsWith("#")) {
-        color = colorInput;
-      }
+      let color = colorInput ?? "Blue";
 
       const embed = new EmbedBuilder()
         .setAuthor({ name: nombre })
@@ -174,23 +179,28 @@ client.on("interactionCreate", async (i) => {
         .setDescription(descripcion)
         .setColor(color);
 
-      if (imagen) embed.setImage(imagen);
+      if (typeof imagen === "string" && imagen.startsWith("http")) {
+        embed.setImage(imagen);
+      }
 
       return i.reply({ embeds: [embed] });
     }
 
     // ===== ANNOUNCE =====
     if (cmd === "announce") {
-      const titulo = i.options.getString("titulo") || " ";
-      const mensaje = i.options.getString("mensaje") || " ";
+
+      const titulo = i.options.getString("titulo");
+      const mensaje = i.options.getString("mensaje");
       const imagen = i.options.getString("imagen");
 
       const embed = new EmbedBuilder()
-        .setTitle(titulo)
-        .setDescription(mensaje)
+        .setTitle(titulo ?? "")
+        .setDescription(mensaje ?? "")
         .setColor("Gold");
 
-      if (imagen) embed.setImage(imagen);
+      if (typeof imagen === "string" && imagen.startsWith("http")) {
+        embed.setImage(imagen);
+      }
 
       return i.channel.send({ embeds: [embed] });
     }
@@ -200,77 +210,77 @@ client.on("interactionCreate", async (i) => {
       const m = await getUser(i.guild, i.options.getString("user"));
       if (!m) return i.reply("Usuario no encontrado");
       await m.kick();
-      i.reply("Kick");
+      return i.reply("Kick");
     }
 
     if (cmd === "ban") {
       const m = await getUser(i.guild, i.options.getString("user"));
       if (!m) return i.reply("Usuario no encontrado");
       await m.ban();
-      i.reply("Ban");
+      return i.reply("Ban");
     }
 
     if (cmd === "unban") {
       await i.guild.members.unban(i.options.getString("id"));
-      i.reply("Unban");
+      return i.reply("Unban");
     }
 
     if (cmd === "mute") {
       const m = await getUser(i.guild, i.options.getString("user"));
       if (!m) return i.reply("Usuario no encontrado");
       await m.timeout(i.options.getInteger("tiempo") * 60000);
-      i.reply("Mute");
+      return i.reply("Mute");
     }
 
     if (cmd === "unmute") {
       const m = await getUser(i.guild, i.options.getString("user"));
       if (!m) return i.reply("Usuario no encontrado");
       await m.timeout(null);
-      i.reply("Unmute");
+      return i.reply("Unmute");
     }
 
     if (cmd === "clear") {
       await i.channel.bulkDelete(i.options.getInteger("cantidad"));
-      i.reply({ content: "Borrado", ephemeral: true });
+      return i.reply({ content: "Borrado", ephemeral: true });
     }
 
     if (cmd === "lock") {
       await i.channel.permissionOverwrites.edit(i.guild.roles.everyone, { SendMessages: false });
-      i.reply("Lock");
+      return i.reply("Lock");
     }
 
     if (cmd === "unlock") {
       await i.channel.permissionOverwrites.edit(i.guild.roles.everyone, { SendMessages: true });
-      i.reply("Unlock");
+      return i.reply("Unlock");
     }
 
     if (cmd === "warn") {
       const u = i.options.getString("user");
       if (!warns[u]) warns[u] = [];
       warns[u].push("warn");
-      i.reply("Warn");
+      return i.reply("Warn");
     }
 
     if (cmd === "warnings") {
       const u = i.options.getString("user");
-      i.reply((warns[u] || []).length + " warns");
+      return i.reply(String((warns[u] || []).length));
     }
 
     if (cmd === "setlogs") {
       logsChannel = i.options.getString("id");
-      i.reply("Logs set");
+      return i.reply("Logs set");
     }
 
     // ===== FUN =====
     if (cmd === "8ball") {
       const r = ["Sí", "No", "Tal vez", "Obvio"];
-      i.reply(r[Math.floor(Math.random() * r.length)]);
+      return i.reply(r[Math.floor(Math.random() * r.length)]);
     }
 
-    if (cmd === "dice") i.reply("🎲 " + (Math.floor(Math.random() * 6) + 1));
-    if (cmd === "coinflip") i.reply(Math.random() > 0.5 ? "Cara" : "Cruz");
+    if (cmd === "dice") return i.reply("🎲 " + (Math.floor(Math.random() * 6) + 1));
+    if (cmd === "coinflip") return i.reply(Math.random() > 0.5 ? "Cara" : "Cruz");
 
-    // ===== TICKETS =====
+    // ===== PANEL =====
     if (cmd === "panel") {
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -279,12 +289,13 @@ client.on("interactionCreate", async (i) => {
           .setStyle(ButtonStyle.Primary)
       );
 
-      i.reply({ content: "🎫 Panel de tickets", components: [row] });
+      return i.reply({ content: "🎫 Panel de tickets", components: [row] });
     }
   }
 
   // ===== BOTÓN =====
   if (i.isButton()) {
+
     if (i.customId === "ticket") {
 
       if (!tickets[i.user.id]) tickets[i.user.id] = 0;
@@ -302,7 +313,7 @@ client.on("interactionCreate", async (i) => {
 
       ch.send(`<@${i.user.id}>`);
 
-      i.reply({ content: `✅ Ticket creado: ${ch}`, ephemeral: true });
+      return i.reply({ content: `✅ Ticket creado: ${ch}`, ephemeral: true });
     }
   }
 });
