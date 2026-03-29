@@ -2,31 +2,20 @@ const express = require("express");
 const {
   Client,
   GatewayIntentBits,
-  EmbedBuilder,
+  REST,
+  Routes,
+  SlashCommandBuilder,
   PermissionsBitField,
+  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle
+  ButtonStyle
 } = require("discord.js");
 
-// ================= IA =================
-const OpenAI = require("openai");
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
-
-// memoria por usuario
-let memory = {};
-
-// ================= WEB =================
 const app = express();
-app.get("/", (req, res) => res.send("Zyrox ONLINE 😈"));
+app.get("/", (req, res) => res.send("Zyrox FINAL 😈"));
 app.listen(process.env.PORT || 3000);
 
-// ================= BOT =================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -35,310 +24,253 @@ const client = new Client({
   ]
 });
 
-// ================= CONFIG =================
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
 const PREFIX = "z!";
-const STAFF_ROLES = ["1475150139797667842"];
 const CATEGORY_ID = "1478407828849819854";
 
-// ================= DATA =================
-let ticketsCount = {};
 let warns = {};
 let logsChannel = null;
+let tickets = {};
+
+// ================= SLASH =================
+const commands = [
+
+  new SlashCommandBuilder().setName("help").setDescription("Ver comandos"),
+  new SlashCommandBuilder().setName("ping").setDescription("Ping"),
+
+  new SlashCommandBuilder().setName("say")
+    .addStringOption(o=>o.setName("mensaje").setRequired(true)),
+
+  new SlashCommandBuilder().setName("embedpro")
+    .setDescription("Embed editable")
+    .addStringOption(o=>o.setName("nombre").setDescription("Nombre del embed"))
+    .addStringOption(o=>o.setName("titulo"))
+    .addStringOption(o=>o.setName("descripcion"))
+    .addStringOption(o=>o.setName("color"))
+    .addStringOption(o=>o.setName("imagen")),
+
+  new SlashCommandBuilder().setName("announce")
+    .addStringOption(o=>o.setName("titulo").setRequired(true))
+    .addStringOption(o=>o.setName("mensaje").setRequired(true))
+    .addStringOption(o=>o.setName("imagen")),
+
+  new SlashCommandBuilder().setName("kick").addStringOption(o=>o.setName("user").setRequired(true)),
+  new SlashCommandBuilder().setName("ban").addStringOption(o=>o.setName("user").setRequired(true)),
+  new SlashCommandBuilder().setName("unban").addStringOption(o=>o.setName("id").setRequired(true)),
+
+  new SlashCommandBuilder().setName("mute")
+    .addStringOption(o=>o.setName("user").setRequired(true))
+    .addIntegerOption(o=>o.setName("tiempo").setRequired(true)),
+
+  new SlashCommandBuilder().setName("unmute")
+    .addStringOption(o=>o.setName("user").setRequired(true)),
+
+  new SlashCommandBuilder().setName("clear")
+    .addIntegerOption(o=>o.setName("cantidad").setRequired(true)),
+
+  new SlashCommandBuilder().setName("lock"),
+  new SlashCommandBuilder().setName("unlock"),
+
+  new SlashCommandBuilder().setName("warn")
+    .addStringOption(o=>o.setName("user").setRequired(true)),
+
+  new SlashCommandBuilder().setName("warnings")
+    .addStringOption(o=>o.setName("user").setRequired(true)),
+
+  new SlashCommandBuilder().setName("setlogs")
+    .addStringOption(o=>o.setName("id").setRequired(true)),
+
+  new SlashCommandBuilder().setName("8ball")
+    .addStringOption(o=>o.setName("pregunta").setRequired(true)),
+
+  new SlashCommandBuilder().setName("dice"),
+  new SlashCommandBuilder().setName("coinflip"),
+
+  new SlashCommandBuilder().setName("panel")
+];
+
+// ================= REGISTER =================
+const rest = new REST({ version: "10" }).setToken(TOKEN);
+(async () => {
+  await rest.put(
+    Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+    { body: commands }
+  );
+})();
 
 // ================= READY =================
 client.once("ready", () => {
   console.log(`🟢 ${client.user.tag} ONLINE`);
 });
 
-// ================= PANEL =================
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
+// ================= UTILS =================
+const getUser = async (guild, input) => {
+  const id = input.replace(/[<@!>]/g, "");
+  return await guild.members.fetch(id).catch(() => null);
+};
 
-  if (message.content === "z!panel") {
-    const embed = new EmbedBuilder()
-      .setTitle("🎫 Sistema de Tickets")
-      .setColor("#5865F2")
-      .setDescription(`
-En este sistema podrás reportar dudas, usuarios, problemas, etc.
-
-*Para abrir un ticket, presiona el botón y completa el formulario.*
-
-**¿Cómo funciona?**
-📩 Abres tu ticket  
-👨‍💻 Un moderador te atenderá  
-✅ Se resolverá tu caso  
-🔒 El ticket será cerrado  
-
-**¿Para qué sirve?**
-• Resolver dudas  
-• Reportar usuarios  
-• Alianzas  
-• Recompensas  
-• Compras  
-
-⚠️ Ten paciencia, el staff responderá pronto.
-      `);
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("open_ticket")
-        .setLabel("Abrir Ticket")
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji("🎫")
-    );
-
-    message.channel.send({ embeds: [embed], components: [row] });
-  }
-});
-
-// ================= COMANDOS =================
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-
-  // ================= IA (COMANDO + MENCIÓN) =================
-  if (
-    message.content.startsWith("z!ai") ||
-    message.mentions.has(client.user)
-  ) {
-    let prompt;
-
-    if (message.content.startsWith("z!ai")) {
-      prompt = message.content.slice(4).trim();
-    } else {
-      prompt = message.content.replace(/<@!?\\d+>/g, "").trim();
-    }
-
-    if (!prompt) return message.reply("Habla po 😡");
-
-    try {
-      if (!memory[message.author.id]) memory[message.author.id] = [];
-
-      memory[message.author.id].push({
-        role: "user",
-        content: prompt
-      });
-
-      const res = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: memory[message.author.id]
-      });
-
-      const reply = res.choices[0].message.content;
-
-      memory[message.author.id].push({
-        role: "assistant",
-        content: reply
-      });
-
-      if (memory[message.author.id].length > 10) {
-        memory[message.author.id].shift();
-      }
-
-      return message.reply(reply);
-
-    } catch (err) {
-      console.error(err);
-      return message.reply("❌ Error IA (revisa API)");
-    }
-  }
-
-  // ================= PREFIX =================
-  if (!message.content.startsWith(PREFIX)) return;
-
-  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const cmd = args.shift().toLowerCase();
-
-  // ================= HELP =================
-  if (cmd === "help") {
-    const embed = new EmbedBuilder()
-      .setTitle("📜 Zyrox System - Help")
-      .setColor("#5865F2")
-      .addFields(
-        {
-          name: "⚙️ General",
-          value: "`z!ping`\n`z!help`\n`z!ai <mensaje>`"
-        },
-        {
-          name: "🎮 Diversión",
-          value: "`z!8ball`\n`z!dice`\n`z!coinflip`"
-        },
-        {
-          name: "🛠 Moderación",
-          value: "`z!say`\n`z!embed`\n`z!lock`\n`z!unlock`"
-        },
-        {
-          name: "👮 Moderación 2",
-          value: "`z!warn`\n`z!warnings`\n`z!setlogs`"
-        },
-        {
-          name: "🎫 Tickets",
-          value: "`z!panel` → abre sistema"
-        }
-      );
-
-    return message.channel.send({ embeds: [embed] });
-  }
-
-  if (cmd === "ping") {
-    return message.reply(`🏓 Pong! ${client.ws.ping}ms`);
-  }
-
-  if (cmd === "say") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-    message.channel.send(args.join(" "));
-    message.delete();
-  }
-
-  if (cmd === "embed") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-
-    const embed = new EmbedBuilder()
-      .setDescription(args.join(" "))
-      .setColor("#2b2d31");
-
-    message.channel.send({ embeds: [embed] });
-    message.delete();
-  }
-
-  if (cmd === "lock") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-
-    message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
-      SendMessages: false
-    });
-
-    message.reply("🔒 Canal bloqueado");
-  }
-
-  if (cmd === "unlock") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-
-    message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
-      SendMessages: true
-    });
-
-    message.reply("🔓 Canal desbloqueado");
-  }
-
-  if (cmd === "warn") {
-    const user = message.mentions.users.first();
-    if (!user) return message.reply("Menciona a alguien");
-
-    if (!warns[user.id]) warns[user.id] = [];
-    warns[user.id].push(args.slice(1).join(" ") || "Sin razón");
-
-    message.reply("⚠️ Warn aplicado");
-  }
-
-  if (cmd === "warnings") {
-    const user = message.mentions.users.first();
-    if (!user) return;
-
-    const lista = warns[user.id] || [];
-    message.reply(lista.join("\n") || "Sin warns");
-  }
-
-  if (cmd === "setlogs") {
-    logsChannel = args[0];
-    message.reply("Logs configurados");
-  }
-
-  if (cmd === "8ball") {
-    const r = ["Sí", "No", "Tal vez", "Obvio", "xd"];
-    message.reply(r[Math.floor(Math.random() * r.length)]);
-  }
-
-  if (cmd === "dice") {
-    message.reply(`🎲 ${Math.floor(Math.random() * 6) + 1}`);
-  }
-
-  if (cmd === "coinflip") {
-    message.reply(Math.random() < 0.5 ? "🪙 Cara" : "🪙 Cruz");
-  }
-});
-
-// ================= TICKETS =================
+// ================= INTERACCIONES =================
 client.on("interactionCreate", async (i) => {
 
-  if (i.isButton()) {
-    if (i.customId === "open_ticket") {
-      const modal = new ModalBuilder()
-        .setCustomId("ticket_form")
-        .setTitle("Crear Ticket");
+  if (i.isChatInputCommand()) {
 
-      const reason = new TextInputBuilder()
-        .setCustomId("reason")
-        .setLabel("Describe tu problema")
-        .setStyle(TextInputStyle.Paragraph);
+    const cmd = i.commandName;
 
-      modal.addComponents(new ActionRowBuilder().addComponents(reason));
-
-      return i.showModal(modal);
+    if (cmd === "help") {
+      const embed = new EmbedBuilder()
+        .setTitle("📜 Zyrox System FINAL")
+        .setColor("Blue")
+        .setDescription(`
+📢 /announce /say /embedpro
+🔨 /kick /ban /unban
+🔇 /mute /unmute
+🧹 /clear
+🔒 /lock /unlock
+👮 /warn /warnings
+⚙️ /setlogs
+🎮 /8ball /dice /coinflip
+🎫 /panel
+        `);
+      return i.reply({ embeds: [embed], ephemeral: true });
     }
 
-    if (i.customId === "close_ticket") {
-      await i.reply({ content: "🔒 Cerrando...", ephemeral: true });
-      setTimeout(() => i.channel.delete().catch(() => {}), 2000);
+    if (cmd === "ping") return i.reply(`🏓 ${client.ws.ping}ms`);
+
+    // ===== SAY =====
+    if (cmd === "say") {
+      if (!i.member.permissions.has(PermissionsBitField.Flags.Administrator))
+        return i.reply({ content: "❌ Sin permisos", ephemeral: true });
+
+      const msg = i.options.getString("mensaje");
+      await i.channel.send(msg);
+      return i.reply({ content: "✅ Enviado", ephemeral: true });
+    }
+
+    // ===== EMBED PRO =====
+    if (cmd === "embedpro") {
+      const embed = new EmbedBuilder()
+        .setAuthor({ name: i.options.getString("nombre") || "Zyrox" })
+        .setTitle(i.options.getString("titulo") || null)
+        .setDescription(i.options.getString("descripcion") || null)
+        .setColor(i.options.getString("color") || "Blue");
+
+      const img = i.options.getString("imagen");
+      if (img) embed.setImage(img);
+
+      return i.reply({ embeds: [embed] });
+    }
+
+    // ===== ANNOUNCE =====
+    if (cmd === "announce") {
+      const embed = new EmbedBuilder()
+        .setTitle(i.options.getString("titulo"))
+        .setDescription(i.options.getString("mensaje"))
+        .setColor("Gold");
+
+      const img = i.options.getString("imagen");
+      if (img) embed.setImage(img);
+
+      return i.channel.send({ embeds: [embed] });
+    }
+
+    // ===== MOD =====
+    if (cmd === "kick") {
+      const m = await getUser(i.guild, i.options.getString("user"));
+      await m.kick();
+      i.reply("Kick");
+    }
+
+    if (cmd === "ban") {
+      const m = await getUser(i.guild, i.options.getString("user"));
+      await m.ban();
+      i.reply("Ban");
+    }
+
+    if (cmd === "unban") {
+      await i.guild.members.unban(i.options.getString("id"));
+      i.reply("Unban");
+    }
+
+    if (cmd === "mute") {
+      const m = await getUser(i.guild, i.options.getString("user"));
+      await m.timeout(i.options.getInteger("tiempo") * 60000);
+      i.reply("Mute");
+    }
+
+    if (cmd === "unmute") {
+      const m = await getUser(i.guild, i.options.getString("user"));
+      await m.timeout(null);
+      i.reply("Unmute");
+    }
+
+    if (cmd === "clear") {
+      await i.channel.bulkDelete(i.options.getInteger("cantidad"));
+      i.reply({ content: "Borrado", ephemeral: true });
+    }
+
+    if (cmd === "lock") {
+      await i.channel.permissionOverwrites.edit(i.guild.roles.everyone, { SendMessages: false });
+      i.reply("Lock");
+    }
+
+    if (cmd === "unlock") {
+      await i.channel.permissionOverwrites.edit(i.guild.roles.everyone, { SendMessages: true });
+      i.reply("Unlock");
+    }
+
+    if (cmd === "warn") {
+      const u = i.options.getString("user");
+      if (!warns[u]) warns[u] = [];
+      warns[u].push("warn");
+      i.reply("Warn");
+    }
+
+    if (cmd === "warnings") {
+      const u = i.options.getString("user");
+      i.reply((warns[u] || []).length + " warns");
+    }
+
+    if (cmd === "setlogs") {
+      logsChannel = i.options.getString("id");
+      i.reply("Logs set");
+    }
+
+    // ===== FUN =====
+    if (cmd === "8ball") {
+      const r = ["Sí", "No", "Tal vez", "Obvio"];
+      i.reply(r[Math.random()*r.length|0]);
+    }
+
+    if (cmd === "dice") i.reply("🎲 " + (Math.random()*6|0));
+    if (cmd === "coinflip") i.reply(Math.random()>0.5?"Cara":"Cruz");
+
+    // ===== TICKETS =====
+    if (cmd === "panel") {
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("ticket").setLabel("Abrir Ticket").setStyle(ButtonStyle.Primary)
+      );
+      i.reply({ content: "🎫 Panel", components: [row] });
     }
   }
 
-  if (i.isModalSubmit()) {
-    if (i.customId !== "ticket_form") return;
+  if (i.isButton()) {
+    if (i.customId === "ticket") {
+      if (!tickets[i.user.id]) tickets[i.user.id] = 0;
+      if (tickets[i.user.id] >= 3)
+        return i.reply({ content: "Max 3 tickets", ephemeral: true });
 
-    const reason = i.fields.getTextInputValue("reason");
+      const ch = await i.guild.channels.create({
+        name: `ticket-${i.user.username}`,
+        parent: CATEGORY_ID
+      });
 
-    if (!ticketsCount[i.user.id]) ticketsCount[i.user.id] = 0;
-    if (ticketsCount[i.user.id] >= 3)
-      return i.reply({ content: "❌ Máximo 3 tickets", ephemeral: true });
-
-    const channel = await i.guild.channels.create({
-      name: `ticket-${i.user.username}`,
-      parent: CATEGORY_ID,
-      permissionOverwrites: [
-        {
-          id: i.guild.id,
-          deny: [PermissionsBitField.Flags.ViewChannel]
-        },
-        {
-          id: i.user.id,
-          allow: [
-            PermissionsBitField.Flags.ViewChannel,
-            PermissionsBitField.Flags.SendMessages
-          ]
-        },
-        ...STAFF_ROLES.map(r => ({
-          id: r,
-          allow: [
-            PermissionsBitField.Flags.ViewChannel,
-            PermissionsBitField.Flags.SendMessages
-          ]
-        }))
-      ]
-    });
-
-    ticketsCount[i.user.id]++;
-
-    const embed = new EmbedBuilder()
-      .setTitle("🎫 Ticket Abierto")
-      .setColor("#57F287")
-      .setDescription(`**Usuario:** <@${i.user.id}>\n**Motivo:** ${reason}`);
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("close_ticket")
-        .setLabel("Cerrar Ticket")
-        .setStyle(ButtonStyle.Danger)
-    );
-
-    channel.send({
-      content: `<@${i.user.id}>`,
-      embeds: [embed],
-      components: [row]
-    });
-
-    i.reply({ content: `✅ Ticket creado: ${channel}`, ephemeral: true });
+      tickets[i.user.id]++;
+      ch.send(`<@${i.user.id}>`);
+      i.reply({ content: `Creado ${ch}`, ephemeral: true });
+    }
   }
 });
 
-// ================= LOGIN =================
-client.login(process.env.TOKEN);
+client.login(TOKEN);
