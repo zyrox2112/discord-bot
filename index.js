@@ -1,6 +1,4 @@
 const express = require("express");
-const fetch = require("node-fetch");
-
 const {
   Client,
   GatewayIntentBits,
@@ -13,6 +11,15 @@ const {
   TextInputBuilder,
   TextInputStyle
 } = require("discord.js");
+
+// ================= IA =================
+const OpenAI = require("openai");
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// memoria por usuario
+let memory = {};
 
 // ================= WEB =================
 const app = express();
@@ -35,7 +42,8 @@ const CATEGORY_ID = "1478407828849819854";
 
 // ================= DATA =================
 let ticketsCount = {};
-let aiMemory = {}; // 🧠 memoria IA
+let warns = {};
+let logsChannel = null;
 
 // ================= READY =================
 client.once("ready", () => {
@@ -49,102 +57,194 @@ client.on("messageCreate", async (message) => {
   if (message.content === "z!panel") {
     const embed = new EmbedBuilder()
       .setTitle("🎫 Sistema de Tickets")
-      .setColor("#2b2d31")
-      .setDescription("Presiona el botón para abrir un ticket con el staff.");
+      .setColor("#5865F2")
+      .setDescription(`
+En este sistema podrás reportar dudas, usuarios, problemas, etc.
+
+*Para abrir un ticket, presiona el botón y completa el formulario.*
+
+**¿Cómo funciona?**
+📩 Abres tu ticket  
+👨‍💻 Un moderador te atenderá  
+✅ Se resolverá tu caso  
+🔒 El ticket será cerrado  
+
+**¿Para qué sirve?**
+• Resolver dudas  
+• Reportar usuarios  
+• Alianzas  
+• Recompensas  
+• Compras  
+
+⚠️ Ten paciencia, el staff responderá pronto.
+      `);
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("open_ticket")
         .setLabel("Abrir Ticket")
         .setStyle(ButtonStyle.Primary)
+        .setEmoji("🎫")
     );
 
     message.channel.send({ embeds: [embed], components: [row] });
   }
 });
 
-// ================= COMMANDS =================
+// ================= COMANDOS =================
 client.on("messageCreate", async (message) => {
-  if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+  if (message.author.bot) return;
 
-  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const cmd = args.shift().toLowerCase();
+  // ================= IA (COMANDO + MENCIÓN) =================
+  if (
+    message.content.startsWith("z!ai") ||
+    message.mentions.has(client.user)
+  ) {
+    let prompt;
 
-  // ================= IA CON MEMORIA =================
-  if (cmd === "ai") {
-
-    const prompt = args.join(" ");
-    if (!prompt) return message.reply("❌ Escribe algo");
-
-    const userId = message.author.id;
-
-    if (!aiMemory[userId]) {
-      aiMemory[userId] = [
-        {
-          role: "system",
-          content: "Eres un bot gamer latino, hablas como bro, usas humor xd."
-        }
-      ];
+    if (message.content.startsWith("z!ai")) {
+      prompt = message.content.slice(4).trim();
+    } else {
+      prompt = message.content.replace(/<@!?\\d+>/g, "").trim();
     }
 
-    aiMemory[userId].push({
-      role: "user",
-      content: prompt
-    });
-
-    // 🔥 limitar memoria (últimos 10 mensajes)
-    if (aiMemory[userId].length > 10) {
-      aiMemory[userId].splice(1, 1);
-    }
+    if (!prompt) return message.reply("Habla po 😡");
 
     try {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENAI_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "gpt-4.1-mini",
-          messages: aiMemory[userId]
-        })
+      if (!memory[message.author.id]) memory[message.author.id] = [];
+
+      memory[message.author.id].push({
+        role: "user",
+        content: prompt
       });
 
-      const data = await res.json();
+      const res = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: memory[message.author.id]
+      });
 
-      if (!data.choices) {
-        console.log(data);
-        return message.reply("❌ Error IA");
-      }
+      const reply = res.choices[0].message.content;
 
-      const reply = data.choices[0].message.content;
-
-      aiMemory[userId].push({
+      memory[message.author.id].push({
         role: "assistant",
         content: reply
       });
 
-      message.reply(reply);
+      if (memory[message.author.id].length > 10) {
+        memory[message.author.id].shift();
+      }
+
+      return message.reply(reply);
 
     } catch (err) {
       console.error(err);
-      message.reply("❌ Error IA");
+      return message.reply("❌ Error IA (revisa API)");
     }
   }
 
-  // ================= OTROS COMANDOS =================
-  if (cmd === "ping") return message.reply(`🏓 Pong! ${client.ws.ping}ms`);
+  // ================= PREFIX =================
+  if (!message.content.startsWith(PREFIX)) return;
 
+  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+  const cmd = args.shift().toLowerCase();
+
+  // ================= HELP =================
   if (cmd === "help") {
     const embed = new EmbedBuilder()
-      .setTitle("📜 Zyrox System")
-      .setDescription("Comandos disponibles:\n\nz!ai\nz!ping\nz!panel");
+      .setTitle("📜 Zyrox System - Help")
+      .setColor("#5865F2")
+      .addFields(
+        {
+          name: "⚙️ General",
+          value: "`z!ping`\n`z!help`\n`z!ai <mensaje>`"
+        },
+        {
+          name: "🎮 Diversión",
+          value: "`z!8ball`\n`z!dice`\n`z!coinflip`"
+        },
+        {
+          name: "🛠 Moderación",
+          value: "`z!say`\n`z!embed`\n`z!lock`\n`z!unlock`"
+        },
+        {
+          name: "👮 Moderación 2",
+          value: "`z!warn`\n`z!warnings`\n`z!setlogs`"
+        },
+        {
+          name: "🎫 Tickets",
+          value: "`z!panel` → abre sistema"
+        }
+      );
 
     return message.channel.send({ embeds: [embed] });
   }
 
+  if (cmd === "ping") {
+    return message.reply(`🏓 Pong! ${client.ws.ping}ms`);
+  }
+
+  if (cmd === "say") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+    message.channel.send(args.join(" "));
+    message.delete();
+  }
+
+  if (cmd === "embed") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+
+    const embed = new EmbedBuilder()
+      .setDescription(args.join(" "))
+      .setColor("#2b2d31");
+
+    message.channel.send({ embeds: [embed] });
+    message.delete();
+  }
+
+  if (cmd === "lock") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+
+    message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
+      SendMessages: false
+    });
+
+    message.reply("🔒 Canal bloqueado");
+  }
+
+  if (cmd === "unlock") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+
+    message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
+      SendMessages: true
+    });
+
+    message.reply("🔓 Canal desbloqueado");
+  }
+
+  if (cmd === "warn") {
+    const user = message.mentions.users.first();
+    if (!user) return message.reply("Menciona a alguien");
+
+    if (!warns[user.id]) warns[user.id] = [];
+    warns[user.id].push(args.slice(1).join(" ") || "Sin razón");
+
+    message.reply("⚠️ Warn aplicado");
+  }
+
+  if (cmd === "warnings") {
+    const user = message.mentions.users.first();
+    if (!user) return;
+
+    const lista = warns[user.id] || [];
+    message.reply(lista.join("\n") || "Sin warns");
+  }
+
+  if (cmd === "setlogs") {
+    logsChannel = args[0];
+    message.reply("Logs configurados");
+  }
+
   if (cmd === "8ball") {
-    const r = ["Sí", "No", "Tal vez"];
+    const r = ["Sí", "No", "Tal vez", "Obvio", "xd"];
     message.reply(r[Math.floor(Math.random() * r.length)]);
   }
 
@@ -153,64 +253,91 @@ client.on("messageCreate", async (message) => {
   }
 
   if (cmd === "coinflip") {
-    message.reply(Math.random() < 0.5 ? "Cara" : "Cruz");
+    message.reply(Math.random() < 0.5 ? "🪙 Cara" : "🪙 Cruz");
   }
 });
 
 // ================= TICKETS =================
 client.on("interactionCreate", async (i) => {
-  if (!i.isButton()) return;
 
-  if (i.customId === "open_ticket") {
-    const modal = new ModalBuilder()
-      .setCustomId("ticket_form")
-      .setTitle("Crear Ticket");
+  if (i.isButton()) {
+    if (i.customId === "open_ticket") {
+      const modal = new ModalBuilder()
+        .setCustomId("ticket_form")
+        .setTitle("Crear Ticket");
 
-    const reason = new TextInputBuilder()
-      .setCustomId("reason")
-      .setLabel("Describe tu problema")
-      .setStyle(TextInputStyle.Paragraph);
+      const reason = new TextInputBuilder()
+        .setCustomId("reason")
+        .setLabel("Describe tu problema")
+        .setStyle(TextInputStyle.Paragraph);
 
-    modal.addComponents(new ActionRowBuilder().addComponents(reason));
+      modal.addComponents(new ActionRowBuilder().addComponents(reason));
 
-    return i.showModal(modal);
+      return i.showModal(modal);
+    }
+
+    if (i.customId === "close_ticket") {
+      await i.reply({ content: "🔒 Cerrando...", ephemeral: true });
+      setTimeout(() => i.channel.delete().catch(() => {}), 2000);
+    }
   }
 
-  if (i.customId === "close_ticket") {
-    await i.reply({ content: "🔒 Cerrando...", ephemeral: true });
-    setTimeout(() => i.channel.delete(), 2000);
+  if (i.isModalSubmit()) {
+    if (i.customId !== "ticket_form") return;
+
+    const reason = i.fields.getTextInputValue("reason");
+
+    if (!ticketsCount[i.user.id]) ticketsCount[i.user.id] = 0;
+    if (ticketsCount[i.user.id] >= 3)
+      return i.reply({ content: "❌ Máximo 3 tickets", ephemeral: true });
+
+    const channel = await i.guild.channels.create({
+      name: `ticket-${i.user.username}`,
+      parent: CATEGORY_ID,
+      permissionOverwrites: [
+        {
+          id: i.guild.id,
+          deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: i.user.id,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        },
+        ...STAFF_ROLES.map(r => ({
+          id: r,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        }))
+      ]
+    });
+
+    ticketsCount[i.user.id]++;
+
+    const embed = new EmbedBuilder()
+      .setTitle("🎫 Ticket Abierto")
+      .setColor("#57F287")
+      .setDescription(`**Usuario:** <@${i.user.id}>\n**Motivo:** ${reason}`);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("close_ticket")
+        .setLabel("Cerrar Ticket")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    channel.send({
+      content: `<@${i.user.id}>`,
+      embeds: [embed],
+      components: [row]
+    });
+
+    i.reply({ content: `✅ Ticket creado: ${channel}`, ephemeral: true });
   }
-});
-
-client.on("interactionCreate", async (i) => {
-  if (!i.isModalSubmit()) return;
-  if (i.customId !== "ticket_form") return;
-
-  const reason = i.fields.getTextInputValue("reason");
-
-  const channel = await i.guild.channels.create({
-    name: `ticket-${i.user.username}`,
-    parent: CATEGORY_ID,
-    permissionOverwrites: [
-      { id: i.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-      { id: i.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-      ...STAFF_ROLES.map(r => ({
-        id: r,
-        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
-      }))
-    ]
-  });
-
-  const embed = new EmbedBuilder()
-    .setTitle("🎫 Ticket")
-    .setDescription(`Motivo: ${reason}`);
-
-  channel.send({
-    content: `<@${i.user.id}> <@&${STAFF_ROLES[0]}>`,
-    embeds: [embed]
-  });
-
-  i.reply({ content: "✅ Ticket creado", ephemeral: true });
 });
 
 // ================= LOGIN =================
