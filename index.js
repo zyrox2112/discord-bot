@@ -1,4 +1,6 @@
 const express = require("express");
+const fetch = require("node-fetch");
+
 const {
   Client,
   GatewayIntentBits,
@@ -33,6 +35,7 @@ const CATEGORY_ID = "1478407828849819854";
 
 // ================= DATA =================
 let ticketsCount = {};
+let aiMemory = {}; // 🧠 memoria IA
 
 // ================= READY =================
 client.once("ready", () => {
@@ -47,16 +50,13 @@ client.on("messageCreate", async (message) => {
     const embed = new EmbedBuilder()
       .setTitle("🎫 Sistema de Tickets")
       .setColor("#2b2d31")
-      .setDescription(
-        "Presiona el botón para abrir un ticket con el staff.\n\n⚡ Respuesta rápida\n🔒 Soporte privado\n🎯 Atención directa"
-      );
+      .setDescription("Presiona el botón para abrir un ticket con el staff.");
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("open_ticket")
         .setLabel("Abrir Ticket")
         .setStyle(ButtonStyle.Primary)
-        .setEmoji("🎫")
     );
 
     message.channel.send({ embeds: [embed], components: [row] });
@@ -70,90 +70,81 @@ client.on("messageCreate", async (message) => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const cmd = args.shift().toLowerCase();
 
-  // ================= HELP PRO =================
+  // ================= IA CON MEMORIA =================
+  if (cmd === "ai") {
+
+    const prompt = args.join(" ");
+    if (!prompt) return message.reply("❌ Escribe algo");
+
+    const userId = message.author.id;
+
+    if (!aiMemory[userId]) {
+      aiMemory[userId] = [
+        {
+          role: "system",
+          content: "Eres un bot gamer latino, hablas como bro, usas humor xd."
+        }
+      ];
+    }
+
+    aiMemory[userId].push({
+      role: "user",
+      content: prompt
+    });
+
+    // 🔥 limitar memoria (últimos 10 mensajes)
+    if (aiMemory[userId].length > 10) {
+      aiMemory[userId].splice(1, 1);
+    }
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENAI_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1-mini",
+          messages: aiMemory[userId]
+        })
+      });
+
+      const data = await res.json();
+
+      if (!data.choices) {
+        console.log(data);
+        return message.reply("❌ Error IA");
+      }
+
+      const reply = data.choices[0].message.content;
+
+      aiMemory[userId].push({
+        role: "assistant",
+        content: reply
+      });
+
+      message.reply(reply);
+
+    } catch (err) {
+      console.error(err);
+      message.reply("❌ Error IA");
+    }
+  }
+
+  // ================= OTROS COMANDOS =================
+  if (cmd === "ping") return message.reply(`🏓 Pong! ${client.ws.ping}ms`);
+
   if (cmd === "help") {
     const embed = new EmbedBuilder()
-      .setTitle("📜 Zyrox System - Help Menu")
-      .setColor("#5865F2")
-      .setThumbnail(client.user.displayAvatarURL())
-      .setDescription("Lista completa de comandos del bot 😈")
-      .addFields(
-        {
-          name: "⚙️ General",
-          value:
-            "`z!ping` → ver latencia del bot\n" +
-            "`z!help` → muestra este menú",
-        },
-        {
-          name: "🎮 Diversión",
-          value:
-            "`z!8ball` → pregunta mágica\n" +
-            "`z!dice` → lanzar dado\n" +
-            "`z!coinflip` → cara o cruz",
-        },
-        {
-          name: "🛠 Moderación",
-          value:
-            "`z!say` → repetir mensaje (admin)\n" +
-            "`z!embed` → mensaje embed (admin)\n" +
-            "`z!lock` → bloquear canal\n" +
-            "`z!unlock` → desbloquear canal",
-        },
-        {
-          name: "🎫 Tickets",
-          value:
-            "`z!panel` → abrir sistema de tickets\n" +
-            "Botón → crear ticket privado"
-        }
-      )
-      .setFooter({ text: "Zyrox System • Made for your server 😈" });
+      .setTitle("📜 Zyrox System")
+      .setDescription("Comandos disponibles:\n\nz!ai\nz!ping\nz!panel");
 
     return message.channel.send({ embeds: [embed] });
   }
 
-  if (cmd === "ping") {
-    return message.reply(`🏓 Pong! ${client.ws.ping}ms`);
-  }
-
-  if (cmd === "say") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-    message.channel.send(args.join(" "));
-    message.delete();
-  }
-
-  if (cmd === "embed") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-
-    const embed = new EmbedBuilder()
-      .setDescription(args.join(" "))
-      .setColor("#2b2d31");
-
-    message.channel.send({ embeds: [embed] });
-    message.delete();
-  }
-
-  if (cmd === "lock") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-
-    message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
-      SendMessages: false
-    });
-
-    message.reply("🔒 Canal bloqueado");
-  }
-
-  if (cmd === "unlock") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
-
-    message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
-      SendMessages: true
-    });
-
-    message.reply("🔓 Canal desbloqueado");
-  }
-
   if (cmd === "8ball") {
-    const r = ["Sí", "No", "Tal vez", "Obvio", "xd"];
+    const r = ["Sí", "No", "Tal vez"];
     message.reply(r[Math.floor(Math.random() * r.length)]);
   }
 
@@ -162,11 +153,11 @@ client.on("messageCreate", async (message) => {
   }
 
   if (cmd === "coinflip") {
-    message.reply(Math.random() < 0.5 ? "🪙 Cara" : "🪙 Cruz");
+    message.reply(Math.random() < 0.5 ? "Cara" : "Cruz");
   }
 });
 
-// ================= TICKETS FIXED =================
+// ================= TICKETS =================
 client.on("interactionCreate", async (i) => {
   if (!i.isButton()) return;
 
@@ -186,68 +177,40 @@ client.on("interactionCreate", async (i) => {
   }
 
   if (i.customId === "close_ticket") {
-    await i.reply({ content: "🔒 Cerrando ticket...", ephemeral: true });
-    setTimeout(() => i.channel.delete().catch(() => {}), 2000);
+    await i.reply({ content: "🔒 Cerrando...", ephemeral: true });
+    setTimeout(() => i.channel.delete(), 2000);
   }
 });
 
-// ================= FORM FIXED =================
 client.on("interactionCreate", async (i) => {
   if (!i.isModalSubmit()) return;
   if (i.customId !== "ticket_form") return;
 
   const reason = i.fields.getTextInputValue("reason");
 
-  if (!ticketsCount[i.user.id]) ticketsCount[i.user.id] = 0;
-  if (ticketsCount[i.user.id] >= 3)
-    return i.reply({ content: "❌ Máximo 3 tickets activos", ephemeral: true });
-
   const channel = await i.guild.channels.create({
     name: `ticket-${i.user.username}`,
     parent: CATEGORY_ID,
     permissionOverwrites: [
-      {
-        id: i.guild.id,
-        deny: [PermissionsBitField.Flags.ViewChannel]
-      },
-      {
-        id: i.user.id,
-        allow: [
-          PermissionsBitField.Flags.ViewChannel,
-          PermissionsBitField.Flags.SendMessages
-        ]
-      },
+      { id: i.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+      { id: i.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
       ...STAFF_ROLES.map(r => ({
         id: r,
-        allow: [
-          PermissionsBitField.Flags.ViewChannel,
-          PermissionsBitField.Flags.SendMessages
-        ]
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
       }))
     ]
   });
 
-  ticketsCount[i.user.id]++;
-
   const embed = new EmbedBuilder()
-    .setTitle("🎫 Ticket Abierto")
-    .setColor("#57F287")
-    .setDescription(`**Usuario:** <@${i.user.id}>\n**Motivo:** ${reason}`);
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("close_ticket")
-      .setLabel("Cerrar Ticket")
-      .setStyle(ButtonStyle.Danger)
-  );
+    .setTitle("🎫 Ticket")
+    .setDescription(`Motivo: ${reason}`);
 
   channel.send({
     content: `<@${i.user.id}> <@&${STAFF_ROLES[0]}>`,
-    embeds: [embed],
-    components: [row]
+    embeds: [embed]
   });
 
-  i.reply({ content: `✅ Ticket creado: ${channel}`, ephemeral: true });
+  i.reply({ content: "✅ Ticket creado", ephemeral: true });
 });
 
 // ================= LOGIN =================
