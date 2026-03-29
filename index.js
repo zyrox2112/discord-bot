@@ -22,7 +22,8 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
   ]
 });
 
@@ -139,22 +140,14 @@ client.on("interactionCreate", async (i) => {
       return i.reply(`🏓 ${client.ws.ping}ms`);
     }
 
-    // 🔥 FIXED HELP SLASH
     if (cmd === "help") {
       return i.reply({
         ephemeral: true,
         content:
 `📜 COMANDOS SLASH:
-/ping
-/say
-/kick
-/ban
-/panel
-/8ball
-/dice
-/coinflip
+ping, say, kick, ban, panel, warn, clear, mute, unmute, 8ball, dice, coinflip
 
-📌 También puedes usar: z!help`
+📌 También puedes usar z!`
       });
     }
 
@@ -187,6 +180,19 @@ client.on("interactionCreate", async (i) => {
 
       return i.reply({ content: "Panel", components: [row] });
     }
+
+    if (cmd === "8ball") {
+      const r = ["sí", "no", "tal vez", "obvio", "ni idea"];
+      return i.reply(r[Math.floor(Math.random() * r.length)]);
+    }
+
+    if (cmd === "dice") {
+      return i.reply(`🎲 ${Math.floor(Math.random() * 6) + 1}`);
+    }
+
+    if (cmd === "coinflip") {
+      return i.reply(Math.random() < 0.5 ? "cara" : "cruz");
+    }
   }
 
   if (i.isButton()) {
@@ -213,7 +219,7 @@ client.on("interactionCreate", async (i) => {
   }
 });
 
-// ================= PREFIX =================
+// ================= PREFIX (FIXED FULL) =================
 client.on("messageCreate", async (message) => {
 
   if (message.author.bot) return;
@@ -248,20 +254,23 @@ client.on("messageCreate", async (message) => {
     return message.reply("Ban");
   }
 
-  // 🔥 FIXED HELP PREFIX
+  if (cmd === "8ball") {
+    const r = ["sí", "no", "tal vez", "obvio", "ni idea"];
+    return message.reply(r[Math.floor(Math.random() * r.length)]);
+  }
+
+  if (cmd === "dice") {
+    return message.reply(`🎲 ${Math.floor(Math.random() * 6) + 1}`);
+  }
+
+  if (cmd === "coinflip") {
+    return message.reply(Math.random() < 0.5 ? "cara" : "cruz");
+  }
+
   if (cmd === "help") {
     return message.reply(
 `📜 COMANDOS PREFIX:
-z!ping
-z!say
-z!kick
-z!ban
-z!panel
-z!8ball
-z!dice
-z!coinflip
-
-📌 También puedes usar: /help`
+z!ping, z!say, z!kick, z!ban, z!panel, z!warn, z!clear, z!mute, z!unmute, z!8ball, z!dice, z!coinflip`
     );
   }
 });
