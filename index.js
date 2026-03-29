@@ -132,12 +132,30 @@ const getUser = async (guild, input) => {
 client.on("interactionCreate", async (i) => {
 
   if (i.isChatInputCommand()) {
+
     const cmd = i.commandName;
 
-    if (cmd === "ping") return i.reply(`🏓 ${client.ws.ping}ms`);
+    if (cmd === "ping") {
+      return i.reply(`🏓 ${client.ws.ping}ms`);
+    }
 
+    // 🔥 FIXED HELP SLASH
     if (cmd === "help") {
-      return i.reply({ content: "📜 Usa / o z!", ephemeral: true });
+      return i.reply({
+        ephemeral: true,
+        content:
+`📜 COMANDOS SLASH:
+/ping
+/say
+/kick
+/ban
+/panel
+/8ball
+/dice
+/coinflip
+
+📌 También puedes usar: z!help`
+      });
     }
 
     if (cmd === "say") {
@@ -171,13 +189,15 @@ client.on("interactionCreate", async (i) => {
     }
   }
 
-  // ===== BUTTONS =====
   if (i.isButton()) {
+
     if (i.customId === "ticket") {
 
       if (!tickets[i.user.id]) tickets[i.user.id] = 0;
-      if (tickets[i.user.id] >= 3)
+
+      if (tickets[i.user.id] >= 3) {
         return i.reply({ content: "Max 3 tickets", ephemeral: true });
+      }
 
       const ch = await i.guild.channels.create({
         name: `ticket-${i.user.username}`,
@@ -185,6 +205,7 @@ client.on("interactionCreate", async (i) => {
       });
 
       tickets[i.user.id]++;
+
       ch.send(`<@${i.user.id}>`);
 
       return i.reply({ content: `Created ${ch}`, ephemeral: true });
@@ -192,7 +213,7 @@ client.on("interactionCreate", async (i) => {
   }
 });
 
-// ================= PREFIX Z! =================
+// ================= PREFIX =================
 client.on("messageCreate", async (message) => {
 
   if (message.author.bot) return;
@@ -227,8 +248,21 @@ client.on("messageCreate", async (message) => {
     return message.reply("Ban");
   }
 
+  // 🔥 FIXED HELP PREFIX
   if (cmd === "help") {
-    return message.reply("Usa z! o / comandos 😎");
+    return message.reply(
+`📜 COMANDOS PREFIX:
+z!ping
+z!say
+z!kick
+z!ban
+z!panel
+z!8ball
+z!dice
+z!coinflip
+
+📌 También puedes usar: /help`
+    );
   }
 });
 
