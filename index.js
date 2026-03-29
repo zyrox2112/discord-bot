@@ -50,21 +50,7 @@ const commands = [
     .setDescription("Enviar mensaje")
     .addStringOption(o => o.setName("mensaje").setDescription("Texto").setRequired(true)),
 
-  new SlashCommandBuilder()
-    .setName("embedpro")
-    .setDescription("Embed personalizado")
-    .addStringOption(o => o.setName("nombre").setDescription("Autor"))
-    .addStringOption(o => o.setName("titulo").setDescription("Titulo"))
-    .addStringOption(o => o.setName("descripcion").setDescription("Descripcion"))
-    .addStringOption(o => o.setName("color").setDescription("#HEX o Blue"))
-    .addStringOption(o => o.setName("imagen").setDescription("URL imagen")),
-
-  new SlashCommandBuilder()
-    .setName("announce")
-    .setDescription("Anuncio")
-    .addStringOption(o => o.setName("titulo").setDescription("Titulo").setRequired(true))
-    .addStringOption(o => o.setName("mensaje").setDescription("Mensaje").setRequired(true))
-    .addStringOption(o => o.setName("imagen").setDescription("Imagen")),
+  new SlashCommandBuilder().setName("panel").setDescription("Ticket panel"),
 
   new SlashCommandBuilder().setName("kick").setDescription("Kick user")
     .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
@@ -72,38 +58,11 @@ const commands = [
   new SlashCommandBuilder().setName("ban").setDescription("Ban user")
     .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
 
-  new SlashCommandBuilder().setName("unban").setDescription("Unban user")
-    .addStringOption(o => o.setName("id").setDescription("ID").setRequired(true)),
-
-  new SlashCommandBuilder().setName("mute").setDescription("Mute user")
-    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true))
-    .addIntegerOption(o => o.setName("tiempo").setDescription("Minutos").setRequired(true)),
-
-  new SlashCommandBuilder().setName("unmute").setDescription("Unmute user")
-    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
-
-  new SlashCommandBuilder().setName("clear").setDescription("Clear messages")
-    .addIntegerOption(o => o.setName("cantidad").setDescription("Cantidad").setRequired(true)),
-
-  new SlashCommandBuilder().setName("lock").setDescription("Lock channel"),
-  new SlashCommandBuilder().setName("unlock").setDescription("Unlock channel"),
-
-  new SlashCommandBuilder().setName("warn").setDescription("Warn user")
-    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
-
-  new SlashCommandBuilder().setName("warnings").setDescription("See warns")
-    .addStringOption(o => o.setName("user").setDescription("Usuario").setRequired(true)),
-
-  new SlashCommandBuilder().setName("setlogs").setDescription("Set logs channel")
-    .addStringOption(o => o.setName("id").setDescription("Channel ID").setRequired(true)),
-
   new SlashCommandBuilder().setName("8ball").setDescription("Ask bot")
     .addStringOption(o => o.setName("pregunta").setDescription("Pregunta").setRequired(true)),
 
   new SlashCommandBuilder().setName("dice").setDescription("Roll dice"),
-  new SlashCommandBuilder().setName("coinflip").setDescription("Coin flip"),
-
-  new SlashCommandBuilder().setName("panel").setDescription("Ticket panel")
+  new SlashCommandBuilder().setName("coinflip").setDescription("Coin flip")
 ];
 
 // ================= REGISTER =================
@@ -140,15 +99,30 @@ client.on("interactionCreate", async (i) => {
       return i.reply(`🏓 ${client.ws.ping}ms`);
     }
 
+    // 💎 HELP SLASH (NUEVO PRO)
     if (cmd === "help") {
-      return i.reply({
-        ephemeral: true,
-        content:
-`📜 COMANDOS SLASH:
-ping, say, kick, ban, panel, warn, clear, mute, unmute, 8ball, dice, coinflip
+      const embed = new EmbedBuilder()
+        .setTitle("📜 Zyrox System | Help")
+        .setColor("Blue")
+        .setThumbnail(i.client.user.displayAvatarURL())
+        .setDescription("Todos los comandos disponibles del bot 🚀")
+        .addFields(
+          {
+            name: "⚡ Utilidad",
+            value: "`/ping` - Ver latencia\n`/say` - Enviar mensaje\n`/8ball` - Pregunta al bot\n`/dice` - Tirar dado\n`/coinflip` - Cara o cruz"
+          },
+          {
+            name: "🛡️ Moderación",
+            value: "`/kick` - Expulsar usuario\n`/ban` - Banear usuario"
+          },
+          {
+            name: "🎫 Sistema",
+            value: "`/panel` - Panel de tickets"
+          }
+        )
+        .setFooter({ text: "Zyrox System 😈 | Slash Commands" });
 
-📌 También puedes usar z!`
-      });
+      return i.reply({ embeds: [embed], ephemeral: true });
     }
 
     if (cmd === "say") {
@@ -219,7 +193,7 @@ ping, say, kick, ban, panel, warn, clear, mute, unmute, 8ball, dice, coinflip
   }
 });
 
-// ================= PREFIX (FIXED FULL) =================
+// ================= PREFIX =================
 client.on("messageCreate", async (message) => {
 
   if (message.author.bot) return;
@@ -267,11 +241,30 @@ client.on("messageCreate", async (message) => {
     return message.reply(Math.random() < 0.5 ? "cara" : "cruz");
   }
 
+  // 💎 HELP PREFIX (NUEVO PRO)
   if (cmd === "help") {
-    return message.reply(
-`📜 COMANDOS PREFIX:
-z!ping, z!say, z!kick, z!ban, z!panel, z!warn, z!clear, z!mute, z!unmute, z!8ball, z!dice, z!coinflip`
-    );
+    const embed = new EmbedBuilder()
+      .setTitle("📜 Zyrox System | Help")
+      .setColor("Blue")
+      .setThumbnail(client.user.displayAvatarURL())
+      .setDescription("Comandos con prefix `z!` 🚀")
+      .addFields(
+        {
+          name: "⚡ Utilidad",
+          value: "`z!ping`\n`z!say`\n`z!8ball`\n`z!dice`\n`z!coinflip`"
+        },
+        {
+          name: "🛡️ Moderación",
+          value: "`z!kick`\n`z!ban`"
+        },
+        {
+          name: "🎫 Sistema",
+          value: "`z!panel`"
+        }
+      )
+      .setFooter({ text: "Zyrox System 😈 | Prefix Commands" });
+
+    return message.reply({ embeds: [embed] });
   }
 });
 
